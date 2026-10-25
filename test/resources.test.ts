@@ -86,7 +86,8 @@ describe("uploads", () => {
       filename: "shot.PNG",
       projectId: "p1",
     });
-    expect(upload.assetId).toBe("a1");
+    const assetId: string = upload.assetId;
+    expect(assetId).toBe("a1");
     expect(JSON.parse(calls[0]?.body as string)).toEqual({
       filename: "shot.PNG",
       contentType: "image/png",
