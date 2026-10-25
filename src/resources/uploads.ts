@@ -33,6 +33,9 @@ const CONTENT_TYPES: Record<string, ContentType> = {
 
 export type UploadSource = Blob | ArrayBuffer | Uint8Array;
 
+/** An upload whose Library asset is ready to use as a generation input. */
+export type ReadyUpload = Upload & { status: "ready"; assetId: string };
+
 export interface UploadFileOptions extends Omit<RequestOptions, "idempotencyKey"> {
   /** Defaults to the name of a `File`. */
   filename?: string;
@@ -61,7 +64,7 @@ export class Uploads {
    * generation input, with its `assetId`. In Node.js, read a file with
    * `fs.openAsBlob(path)`.
    */
-  async upload(file: UploadSource, options: UploadFileOptions = {}): Promise<Upload> {
+  async upload(file: UploadSource, options: UploadFileOptions = {}): Promise<ReadyUpload> {
     const { filename: name, contentType: type, projectId, folderId, sha256, ...rest } = options;
     const blob = file instanceof Blob ? file : new Blob([file as BlobPart]);
     const filename =
@@ -70,7 +73,7 @@ export class Uploads {
     const contentType = type || (blob.type as ContentType) || CONTENT_TYPES[extension(filename)];
     if (!contentType)
       throw new TypeError(`Pass contentType: ${filename} has no type ZeroGen recognizes.`);
-    const created = await this.create(
+    let upload = await this.create(
       {
         filename,
         contentType,
@@ -81,13 +84,18 @@ export class Uploads {
       },
       rest,
     );
-    if (created.status === "ready" || !created.upload) return created;
-    await this.#client.send(
-      created.upload.url,
-      { method: created.upload.method, headers: created.upload.headers, body: blob },
-      { ...rest, timeout: rest.timeout ?? null },
-    );
-    return this.complete(created.id, rest);
+    if (upload.status !== "ready") {
+      if (!upload.upload) throw new Error(`Upload ${upload.id} has no target to send the file to.`);
+      await this.#client.send(
+        upload.upload.url,
+        { method: upload.upload.method, headers: upload.upload.headers, body: blob },
+        { ...rest, timeout: rest.timeout ?? null },
+      );
+      upload = await this.complete(upload.id, rest);
+    }
+    if (upload.status !== "ready" || upload.assetId === null)
+      throw new Error(`Upload ${upload.id} isn't ready.`);
+    return { ...upload, status: upload.status, assetId: upload.assetId };
   }
 
   /** Starts an upload. `PUT` the file's bytes to the returned target, then complete it. */

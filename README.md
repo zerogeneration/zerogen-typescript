@@ -59,7 +59,7 @@ const upload = await zerogen.uploads.upload(await openAsBlob("storyboard.png"), 
 const generation = await zerogen.generations.createAndWait({
   model: "openai/gpt-image-2/edit",
   prompt: "Turn the sky into a sunset",
-  inputs: [{ role: "source", asset: upload.assetId! }],
+  inputs: [{ role: "source", asset: upload.assetId }],
 });
 ```
 
