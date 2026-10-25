@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "The official TypeScript library for the ZeroGen API",
   "license": "MIT",
-  "author": "ZeroGen",
+  "author": "ZeroGen LLC",
   "homepage": "https://github.com/zerogeneration/zerogen-typescript#readme",
   "repository": {
     "type": "git",
