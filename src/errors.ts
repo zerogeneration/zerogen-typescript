@@ -50,3 +50,24 @@ export class ZeroGenError extends Error {
 export class ZeroGenConnectionError extends Error {
   override readonly name = "ZeroGenConnectionError";
 }
+
+/**
+ * @internal Reads an error response from a signed storage URL. It quotes only
+ * the S3 error's `Code` and `Message`, never the rest of the body, which can
+ * echo the request's signature.
+ */
+export async function storageError(response: Response): Promise<ZeroGenError> {
+  const text = await response.text().catch(() => "");
+  const field = (name: string) =>
+    new RegExp(`<${name}>([^<]{1,200})</${name}>`, "u").exec(text)?.[1];
+  const reason = [field("Code"), field("Message")].filter(Boolean).join(": ");
+  return new ZeroGenError(
+    response.status,
+    {
+      code: "unexpected_response",
+      message: `Storage answered HTTP ${response.status}${reason ? `: ${reason}` : ""}`,
+      retryable: response.status === 429 || response.status >= 500,
+    },
+    response.headers,
+  );
+}

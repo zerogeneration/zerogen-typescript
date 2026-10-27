@@ -35,7 +35,7 @@ export interface paths {
     };
     /**
      * Read the organization's balance
-     * @description The organization's funds and monthly limits, shared by every member and project. A new generation's quote must fit within `availableMicroUsd`.
+     * @description The organization's funds and monthly limits, shared by every member and project. A new run's quote must fit within `availableMicroUsd`.
      *
      *     Needs the `account:read` scope.
      */
@@ -79,7 +79,7 @@ export interface paths {
     };
     /**
      * Read a model
-     * @description One model and the JSON Schema (2020-12) that `POST /generations` validates its requests against. A deprecated model sends `Deprecation` and `Sunset`.
+     * @description One model and the JSON Schema (2020-12) that `POST /runs` validates its requests against. A deprecated model sends `Deprecation` and `Sunset`.
      *
      *     Needs the `models:read` scope.
      */
@@ -92,7 +92,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/generations/quote": {
+  "/runs/quote": {
     parameters: {
       query?: never;
       header?: never;
@@ -102,19 +102,19 @@ export interface paths {
     get?: never;
     put?: never;
     /**
-     * Quote a generation
+     * Quote a run
      * @description Validates and prices a request exactly as create would, and returns the maximum charge create would reserve. Nothing starts and nothing is held.
      *
-     *     Needs the `generations:create` scope.
+     *     Needs the `runs:create` scope.
      */
-    post: operations["quoteGeneration"];
+    post: operations["quoteRun"];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/generations": {
+  "/runs": {
     parameters: {
       query?: never;
       header?: never;
@@ -122,27 +122,27 @@ export interface paths {
       cookie?: never;
     };
     /**
-     * List generations
-     * @description The calling key owner's generations, newest first.
+     * List runs
+     * @description The calling key owner's runs, newest first.
      *
-     *     Needs the `generations:read` scope.
+     *     Needs the `runs:read` scope.
      */
-    get: operations["listGenerations"];
+    get: operations["listRuns"];
     put?: never;
     /**
-     * Create a generation
-     * @description Validates, prices, reserves and starts one generation in a single call. Send `Prefer: wait=N` to hold the response until it ends. Nothing is charged unless every check passes.
+     * Create a run
+     * @description Validates, prices, reserves and starts one run in a single call. Send `Prefer: wait=N` to hold the response until it ends. Nothing is charged unless every check passes.
      *
-     *     Needs the `generations:create` scope.
+     *     Needs the `runs:create` scope.
      */
-    post: operations["createGeneration"];
+    post: operations["createRun"];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/generations/{id}": {
+  "/runs/{id}": {
     parameters: {
       query?: never;
       header?: never;
@@ -150,12 +150,12 @@ export interface paths {
       cookie?: never;
     };
     /**
-     * Read a generation
-     * @description One generation and each output's status, asset and error. Send `Prefer: wait=N` to hold the response until it ends. Reads never start or repeat work.
+     * Read a run
+     * @description One run and each output's status, asset and error. Send `Prefer: wait=N` to hold the response until it ends. Reads never start or repeat work.
      *
-     *     Needs the `generations:read` scope.
+     *     Needs the `runs:read` scope.
      */
-    get: operations["getGeneration"];
+    get: operations["getRun"];
     put?: never;
     post?: never;
     delete?: never;
@@ -164,7 +164,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/generations/{id}/cancel": {
+  "/runs/{id}/cancel": {
     parameters: {
       query?: never;
       header?: never;
@@ -174,12 +174,12 @@ export interface paths {
     get?: never;
     put?: never;
     /**
-     * Cancel a generation
-     * @description Stops the generation's unfinished outputs. Outputs a vendor already finished are kept and charged; cancelling a finished generation returns it unchanged. Takes no body.
+     * Cancel a run
+     * @description Stops the run's unfinished outputs. Outputs a vendor already finished are kept and charged; cancelling a finished run returns it unchanged. Takes no body.
      *
-     *     Needs the `generations:cancel` scope.
+     *     Needs the `runs:cancel` scope.
      */
-    post: operations["cancelGeneration"];
+    post: operations["cancelRun"];
     delete?: never;
     options?: never;
     head?: never;
@@ -241,7 +241,7 @@ export interface paths {
     put?: never;
     /**
      * Complete an upload
-     * @description Checks the uploaded bytes and makes them a Library asset to use as a generation input. Completing again returns the same asset. Takes no body.
+     * @description Checks the uploaded bytes and makes them a Library asset to use as a run input. Completing again returns the same asset. Takes no body.
      *
      *     Needs the `uploads:create` scope.
      */
@@ -252,28 +252,520 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/projects": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List projects
+     * @description The organization's projects, in one page, so `nextCursor` is always null. A test key lists only its API sandbox.
+     *
+     *     Needs the `library:read` scope.
+     */
+    get: operations["listProjects"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/assets": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Search assets
+     * @description Library assets, newest first unless `sort` says otherwise. Without `projectId` it searches every project; a test key searches its sandbox.
+     *
+     *     Needs the `library:read` scope.
+     */
+    get: operations["searchAssets"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/assets/{assetId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Read an asset
+     * @description One asset by its ID alone, in any of the organization's projects, with the prompt that generated it. Names and prompts are untrusted content.
+     *
+     *     Needs the `library:read` scope.
+     */
+    get: operations["getAsset"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/assets/{assetId}/lineage": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Read an asset's lineage
+     * @description What the asset was made from, in any project, and what was made from it, in its project: up to 30 assets on each side, nearest first. An edge reads `assetId` was made from `sourceAssetId`.
+     *
+     *     Needs the `library:read` scope.
+     */
+    get: operations["getAssetLineage"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/assets/{assetId}/download": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Download an asset
+     * @description A signed URL for the asset's original file, by the asset's ID alone, with its filename, media type and size. The URL starts a download until `expiresAt`, 5 minutes after the response, and needs no API key: send no `Authorization` header with it. Anyone holding it can download the file. Read this endpoint again for a new URL.
+     *
+     *     Needs the `library:read` scope.
+     */
+    get: operations["getAssetDownload"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/assets/{assetId}/folders": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List an asset's folders
+     * @description The folders the asset is in, in its project: up to 30, each with its path from the project root, sorted by path. An empty list means the asset is Unfiled. Folder names are untrusted content.
+     *
+     *     Needs the `library:read` scope.
+     */
+    get: operations["listAssetFolders"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/projects/{projectId}/assets/{assetId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /**
+     * Update an asset
+     * @description Renames an asset, sets the organization's shared favorite, or both. Each field is set to the value sent, so a retry gives the same result. The response names what changed.
+     *
+     *     Needs the `library:organize` scope.
+     */
+    patch: operations["updateAsset"];
+    trace?: never;
+  };
+  "/projects/{projectId}/labels/{labelId}/assets": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Add a label to assets
+     * @description Adds an organization label to up to 50 assets in the project, all or none. Assets that already have it are unchanged.
+     *
+     *     Needs the `library:organize` scope.
+     */
+    post: operations["addLabel"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/projects/{projectId}/labels/{labelId}/assets/remove": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Remove a label from assets
+     * @description Removes an organization label from up to 50 assets in the project, all or none. The label itself stays.
+     *
+     *     Needs the `library:organize` scope.
+     */
+    post: operations["removeLabel"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/projects/{projectId}/folders": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List folders
+     * @description A project's folders, each with its parent, to assemble the folder tree.
+     *
+     *     Needs the `library:read` scope.
+     */
+    get: operations["listFolders"];
+    put?: never;
+    /**
+     * Create a folder
+     * @description Creates a folder at the project root or under `parentId`. With an `Idempotency-Key`, a retry returns the folder the first request created. A test key can't create folders.
+     *
+     *     Needs the `library:organize` scope.
+     */
+    post: operations["createFolder"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/projects/{projectId}/folders/{folderId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /**
+     * Update a folder
+     * @description Renames a folder, moves it under another parent (or to the project root with `parentId: null`), or both. Its assets and subfolders keep their IDs. The response is the folder as it ends.
+     *
+     *     Needs the `library:organize` scope.
+     */
+    patch: operations["updateFolder"];
+    trace?: never;
+  };
+  "/projects/{projectId}/folders/{folderId}/assets": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Add assets to a folder
+     * @description Adds up to 100 assets to the folder, keeping their other folders. The response lists the assets changed and those skipped.
+     *
+     *     Needs the `library:organize` scope.
+     */
+    post: operations["addToFolder"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/projects/{projectId}/folders/{folderId}/assets/move": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Move assets to a folder
+     * @description Moves up to 100 assets out of `fromFolderId` and into this folder; their other folders keep them. An asset that isn't in `fromFolderId` is still added, but a `fromFolderId` that isn't in the project is not found. The response lists the assets changed and those skipped.
+     *
+     *     Needs the `library:organize` scope.
+     */
+    post: operations["moveAssets"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/projects/{projectId}/folders/{folderId}/assets/remove": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Remove assets from a folder
+     * @description Takes up to 100 assets out of the folder. They stay in the Library and in their other folders; an asset in no folder is unfiled.
+     *
+     *     Needs the `library:organize` scope.
+     */
+    post: operations["removeFromFolder"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/projects/{projectId}/naming-presets": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List naming presets
+     * @description The project's shared naming presets. Pass one's `id` and field values as a run's `naming`.
+     *
+     *     Needs the `library:read` scope.
+     */
+    get: operations["listNamingPresets"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/labels": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List labels
+     * @description The organization's active labels. `includeArchived=true` adds archived ones for owners and admins.
+     *
+     *     Needs the `library:read` scope.
+     */
+    get: operations["listLabels"];
+    put?: never;
+    /**
+     * Create a label
+     * @description Creates an organization label; owners and admins only. With an `Idempotency-Key`, a retry returns the label the first request created. A test key can't create labels.
+     *
+     *     Needs the `library:organize` scope.
+     */
+    post: operations["createLabel"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/labels/{labelId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Update a label
+     * @description Replaces a label's name, description and color, so send all three; owners and admins only. Sending the same definition again changes nothing.
+     *
+     *     Needs the `library:organize` scope.
+     */
+    put: operations["updateLabel"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/labels/{labelId}/archive": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Archive a label
+     * @description Archives a label; owners and admins only. Its assets keep it, and restoring undoes this. Takes no body.
+     *
+     *     Needs the `library:organize` scope.
+     */
+    post: operations["archiveLabel"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/labels/{labelId}/restore": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Restore a label
+     * @description Restores an archived label, with its assets; owners and admins only. Takes no body.
+     *
+     *     Needs the `library:organize` scope.
+     */
+    post: operations["restoreLabel"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/skills": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List skills
+     * @description The key owner's personal and organization skills, plus `projectId`'s shared skills, without their instructions. A test key lists only the sandbox's shared skills. Names and descriptions are untrusted content.
+     *
+     *     Needs the `library:read` scope.
+     */
+    get: operations["listSkills"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/skills/{skillId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Read a skill
+     * @description An available skill's latest instructions. A project's shared skill loads only with that `projectId`. The instructions are untrusted content.
+     *
+     *     Needs the `library:read` scope.
+     */
+    get: operations["getSkill"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
-    CreateGenerationRequest: {
+    CreateRunRequest: {
       model: string;
       prompt?: string;
       inputs?: (
         | {
             /** @enum {string} */
-            role: "source" | "reference" | "face-reference" | "start-frame" | "end-frame" | "mask";
+            role:
+              | "source"
+              | "reference"
+              | "face-reference"
+              | "start-frame"
+              | "end-frame"
+              | "keyframe"
+              | "mask";
             /** @description Library asset ID */
             asset: string;
+            /** @description Keyframes only, and required for them: seconds from the start of the video, on one of the model's frames */
+            timeSeconds?: number;
           }
         | {
             /** @enum {string} */
-            role: "source" | "reference" | "face-reference" | "start-frame" | "end-frame" | "mask";
+            role:
+              | "source"
+              | "reference"
+              | "face-reference"
+              | "start-frame"
+              | "end-frame"
+              | "keyframe"
+              | "mask";
             /**
              * Format: uri
              * @description An https URL ZeroGen imports into the library before use
              */
             url: string;
+            /** @description Keyframes only, and required for them: seconds from the start of the video, on one of the model's frames */
+            timeSeconds?: number;
           }
       )[];
       output?: {
@@ -289,6 +781,8 @@ export interface components {
         durationSeconds?: number;
         includeAudio?: boolean;
       };
+      /** @description Speech models only: the voice to read the prompt in, from the model's voices */
+      voice?: string;
       /** @description Only the parameters the model's schema lists */
       parameters?: {
         [key: string]: string | number | boolean;
@@ -318,7 +812,7 @@ export interface components {
       /** @description A folder in that project to file the outputs in; null or omitted for Unfiled */
       folderId?: string | null;
       naming?: {
-        /** @description A naming preset in the generation's project */
+        /** @description A naming preset in the run's project */
         presetId: string;
         /** @description Field values by field ID; fields left out take the preset's defaults */
         values: {
@@ -357,6 +851,77 @@ export interface components {
       /** @description Lowercase hex SHA-256 of the file, to reuse an identical file in the project. */
       sha256?: string;
     };
+    UpdateAssetRequest: {
+      name?: string;
+      /** @description The organization's shared favorite */
+      favorite?: boolean;
+    };
+    CreateFolderRequest: {
+      name: string;
+      /** @description The parent folder; omit or null for the project root */
+      parentId?: string | null;
+    };
+    UpdateFolderRequest: {
+      name?: string;
+      /** @description The new parent folder, or null to move it to the project root */
+      parentId?: string | null;
+    };
+    FolderAssetsRequest: {
+      /** @description Up to 100 assets */
+      assetIds: string[];
+    };
+    MoveAssetsRequest: {
+      /** @description Up to 100 assets */
+      assetIds: string[];
+      /** @description The folder to take the assets out of; their other folders keep them */
+      fromFolderId: string;
+    };
+    CreateLabelRequest: {
+      name: string;
+      description?: string;
+      /**
+       * @description One of the preset colors: Red #ef4444, Orange #f97316, Amber #f59e0b, Yellow #eab308, Lime #84cc16, Green #22c55e, Teal #14b8a6, Cyan #06b6d4, Blue #3b82f6, Indigo #6366f1, Violet #8b5cf6, Pink #ec4899.
+       * @enum {string}
+       */
+      color?:
+        | "#ef4444"
+        | "#f97316"
+        | "#f59e0b"
+        | "#eab308"
+        | "#84cc16"
+        | "#22c55e"
+        | "#14b8a6"
+        | "#06b6d4"
+        | "#3b82f6"
+        | "#6366f1"
+        | "#8b5cf6"
+        | "#ec4899";
+    };
+    UpdateLabelRequest: {
+      name: string;
+      description: string;
+      /**
+       * @description One of the preset colors: Red #ef4444, Orange #f97316, Amber #f59e0b, Yellow #eab308, Lime #84cc16, Green #22c55e, Teal #14b8a6, Cyan #06b6d4, Blue #3b82f6, Indigo #6366f1, Violet #8b5cf6, Pink #ec4899.
+       * @enum {string}
+       */
+      color:
+        | "#ef4444"
+        | "#f97316"
+        | "#f59e0b"
+        | "#eab308"
+        | "#84cc16"
+        | "#22c55e"
+        | "#14b8a6"
+        | "#06b6d4"
+        | "#3b82f6"
+        | "#6366f1"
+        | "#8b5cf6"
+        | "#ec4899";
+    };
+    LabelAssetsRequest: {
+      /** @description Up to 50 assets */
+      assetIds: string[];
+    };
     Me: {
       apiKey: {
         id: string;
@@ -390,9 +955,9 @@ export interface components {
       /** @constant */
       currency: "USD";
       balanceMicroUsd: number;
-      /** @description Reserved for generations that have not settled; a hold is not a charge */
+      /** @description Reserved for runs that have not settled; a hold is not a charge */
       heldMicroUsd: number | null;
-      /** @description What a new generation's quote must fit within; it can be negative */
+      /** @description What a new run's quote must fit within; it can be negative */
       availableMicroUsd: number;
       /** @description The funds check is bypassed; usage is still charged */
       unlimited: boolean;
@@ -414,7 +979,7 @@ export interface components {
       id: string;
       name: string;
       /** @enum {string} */
-      capability: "image" | "video";
+      capability: "image" | "video" | "speech";
       /** @enum {string} */
       operation:
         | "generate"
@@ -425,16 +990,19 @@ export interface components {
         | "text-to-video"
         | "image-to-video"
         | "first-last-frame-to-video"
+        | "keyframes-to-video"
         | "reference-to-video"
         | "audio-to-video"
         | "video-to-video"
         | "extend-video"
         | "motion-control"
+        | "lip-sync"
         | "clean-plate"
         | "render-to-real"
         | "hdr"
         | "outpaint"
-        | "reference-video-to-video";
+        | "reference-video-to-video"
+        | "text-to-speech";
       /** @enum {string} */
       status: "active" | "deprecated";
       /** @description A deprecated model refuses new requests from this time */
@@ -449,7 +1017,7 @@ export interface components {
       id: string;
       name: string;
       /** @enum {string} */
-      capability: "image" | "video";
+      capability: "image" | "video" | "speech";
       /** @enum {string} */
       operation:
         | "generate"
@@ -460,21 +1028,24 @@ export interface components {
         | "text-to-video"
         | "image-to-video"
         | "first-last-frame-to-video"
+        | "keyframes-to-video"
         | "reference-to-video"
         | "audio-to-video"
         | "video-to-video"
         | "extend-video"
         | "motion-control"
+        | "lip-sync"
         | "clean-plate"
         | "render-to-real"
         | "hdr"
         | "outpaint"
-        | "reference-video-to-video";
+        | "reference-video-to-video"
+        | "text-to-speech";
       /** @enum {string} */
       status: "active" | "deprecated";
       /** @description A deprecated model refuses new requests from this time */
       sunsetAt: string | null;
-      /** @description JSON Schema (2020-12) for POST /v1/generations with this model; x-roles lists each input role's accepted media and limits */
+      /** @description JSON Schema (2020-12) for POST /v1/runs with this model; x-roles lists each input role's accepted media and limits */
       requestSchema: {
         [key: string]: unknown;
       };
@@ -488,7 +1059,7 @@ export interface components {
         quotedMicroUsd: number;
       };
     };
-    Generation: {
+    Run: {
       id: string;
       /** @description The project that holds the outputs */
       projectId: string;
@@ -536,16 +1107,16 @@ export interface components {
       billing: {
         /** @enum {string} */
         mode: "platform" | "byok" | "test";
-        /** @description held: an amount is reserved and nothing is charged yet; charged: chargedMicroUsd is the final charge; released: the hold ended with no charge; null: billing never admitted the generation, so nothing was held or charged */
+        /** @description held: an amount is reserved and nothing is charged yet; charged: chargedMicroUsd is the final charge; released: the hold ended with no charge; null: billing never admitted the run, so nothing was held or charged */
         state: ("held" | "charged" | "released") | null;
-        /** @description While held, where the generation stands. It reports facts, not what settlement will do */
+        /** @description While held, where the run stands. It reports facts, not what settlement will do */
         hold?: {
           /**
-           * @description running: the generation has not ended; ended: it ended and the hold is still pending; needs_attention: it has stayed pending 30 minutes after ending, or 24 hours after admission with no end recorded (endedAt then stays null), so ZeroGen is looking into it
+           * @description running: the run has not ended; ended: it ended and the hold is still pending; needs_attention: it has stayed pending 30 minutes after ending, or 24 hours after admission with no end recorded (endedAt then stays null), so ZeroGen is looking into it
            * @enum {string}
            */
           state: "running" | "ended" | "needs_attention";
-          /** @description When the generation ended; null while it runs or when no end was recorded */
+          /** @description When the run ended; null while it runs or when no end was recorded */
           endedAt: string | null;
         };
         /** @description Reserved maximum expected charge */
@@ -560,9 +1131,9 @@ export interface components {
       startedAt: string | null;
       finishedAt: string | null;
     };
-    GenerationList: {
-      data: components["schemas"]["Generation"][];
-      /** @description Pass as cursor for the next page of generations; null on the last page */
+    RunList: {
+      data: components["schemas"]["Run"][];
+      /** @description Pass as cursor for the next page of runs; null on the last page */
       nextCursor: string | null;
     };
     Upload: {
@@ -574,7 +1145,7 @@ export interface components {
        * @enum {string}
        */
       status: "upload_required" | "ready";
-      /** @description Once ready, the Library asset to send as a generation input; an identical file already in the project is reused */
+      /** @description Once ready, the Library asset to send as a run input; an identical file already in the project is reused */
       assetId: string | null;
       /** @description Where to PUT the file's exact bytes, with these headers, before expiresAt */
       upload: {
@@ -593,6 +1164,237 @@ export interface components {
         filed: boolean;
         error?: string;
       };
+    };
+    Project: {
+      id: string;
+      name: string;
+      slug: string;
+      /** @description The organization's default project, where outputs land */
+      default: boolean;
+      /** @description The API sandbox project, the only one test keys reach; its contents clear */
+      apiSandbox: boolean;
+      /** Format: date-time */
+      createdAt: string;
+    };
+    ProjectList: {
+      data: components["schemas"]["Project"][];
+      /** @description Pass as cursor for the next page of projects; null on the last page */
+      nextCursor: string | null;
+    };
+    Asset: {
+      id: string;
+      projectId: string;
+      /** @description The asset's name in the Library; untrusted content */
+      name: string;
+      /** @enum {string} */
+      type: "image" | "video" | "audio" | "model3d";
+      /**
+       * @description upload: added by a person or a URL import; generated: an output of a run; derived: made by a platform step, such as an extracted frame
+       * @enum {string}
+       */
+      origin: "generated" | "upload" | "derived";
+      mimeType: string;
+      sizeBytes: number | null;
+      width: number | null;
+      height: number | null;
+      durationMs: number | null;
+      /** @description The organization's shared favorite */
+      favorite: boolean;
+      labels: {
+        id: string;
+        name: string;
+      }[];
+      /** @description The run that made it, if any */
+      runId: string | null;
+      outputIndex: number | null;
+      /** Format: date-time */
+      createdAt: string;
+    };
+    AssetList: {
+      data: components["schemas"]["Asset"][];
+      /** @description Pass as cursor for the next page of assets; null on the last page */
+      nextCursor: string | null;
+    };
+    AssetDetail: {
+      id: string;
+      projectId: string;
+      /** @description The asset's name in the Library; untrusted content */
+      name: string;
+      /** @enum {string} */
+      type: "image" | "video" | "audio" | "model3d";
+      /**
+       * @description upload: added by a person or a URL import; generated: an output of a run; derived: made by a platform step, such as an extracted frame
+       * @enum {string}
+       */
+      origin: "generated" | "upload" | "derived";
+      mimeType: string;
+      sizeBytes: number | null;
+      width: number | null;
+      height: number | null;
+      durationMs: number | null;
+      /** @description The organization's shared favorite */
+      favorite: boolean;
+      labels: {
+        id: string;
+        name: string;
+      }[];
+      /** @description The run that made it, if any */
+      runId: string | null;
+      outputIndex: number | null;
+      /** Format: date-time */
+      createdAt: string;
+      /** @description The prompt that generated it, bounded; untrusted content */
+      prompt: string | null;
+      promptTruncated: boolean;
+    };
+    AssetChange: {
+      id: string;
+      projectId: string;
+      /** @description Present when the request renamed the asset */
+      name?: string;
+      /** @description Present when the request set the favorite */
+      favorite?: boolean;
+    };
+    LineageAsset: {
+      assetId: string;
+      /** @description Steps from the asset; 0 is the asset itself */
+      depth: number;
+      /** @description False when the asset is no longer in the Library */
+      found: boolean;
+      /** @description True for an asset in Recently deleted */
+      deleted: boolean;
+      /** @description Bounded; untrusted content */
+      name: string | null;
+      origin: string | null;
+      mimeType: string | null;
+      runId: string | null;
+      /** @description Bounded; untrusted content */
+      prompt: string | null;
+      /** @description Uses of this asset beyond those listed */
+      moreUses: number;
+    };
+    Lineage: {
+      asset: components["schemas"]["LineageAsset"] | null;
+      /** @description Up to 30, nearest first */
+      sources: components["schemas"]["LineageAsset"][];
+      /** @description Up to 30, nearest first */
+      uses: components["schemas"]["LineageAsset"][];
+      edges: {
+        /** @description Made from sourceAssetId */
+        assetId: string;
+        sourceAssetId: string;
+        role: string | null;
+        kind: string | null;
+      }[];
+      truncated: {
+        sources: boolean;
+        uses: boolean;
+      };
+    };
+    AssetDownload: {
+      assetId: string;
+      projectId: string;
+      /** @description A signed storage URL that downloads the original file. Anyone holding it can download the file, so keep it private. GET it without your API key: storage refuses a request that also sends an Authorization header. */
+      url: string;
+      /**
+       * Format: date-time
+       * @description When url stops starting downloads; read the endpoint again for a new one
+       */
+      expiresAt: string;
+      /** @description The name the file downloads under; untrusted content */
+      filename: string;
+      mimeType: string;
+      sizeBytes: number | null;
+    };
+    AssetFolders: {
+      assetId: string;
+      projectId: string;
+      /** @description Up to 30, sorted by path; empty when the asset is Unfiled */
+      folders: {
+        folderId: string;
+        /** @description The folder's names from the project root, such as Characters / Leo; bounded, untrusted content */
+        path: string;
+      }[];
+      /** @description True when the asset is in more folders than listed */
+      truncated: boolean;
+    };
+    Folder: {
+      id: string;
+      projectId: string;
+      /** @description The parent folder, or null at the project root */
+      parentId: string | null;
+      name: string;
+      /** Format: date-time */
+      createdAt: string;
+    };
+    FolderList: {
+      data: components["schemas"]["Folder"][];
+      /** @description Pass as cursor for the next page of folders; null on the last page */
+      nextCursor: string | null;
+    };
+    FolderAssetsChange: {
+      folderId: string;
+      /** @description Assets the request changed */
+      updatedAssetIds: string[];
+      /** @description Assets already as requested, or not active in this project */
+      skippedAssetIds: string[];
+    };
+    NamingPreset: {
+      id: string;
+      projectId: string;
+      name: string;
+      /** @description The preset's naming definition, passed back unchanged with a run */
+      definition: {
+        [key: string]: unknown;
+      };
+    };
+    NamingPresetList: {
+      data: components["schemas"]["NamingPreset"][];
+      /** @description Pass as cursor for the next page of naming presets; null on the last page */
+      nextCursor: string | null;
+    };
+    Label: {
+      id: string;
+      name: string;
+      description: string | null;
+      color: string;
+      assetCount?: number;
+      archived: boolean;
+    };
+    LabelList: {
+      data: components["schemas"]["Label"][];
+      /** @description Pass as cursor for the next page of labels; null on the last page */
+      nextCursor: string | null;
+    };
+    LabelAssetsChange: {
+      labelId: string;
+      projectId: string;
+      assetIds: string[];
+      /** @description True when the assets now have the label, false when it was removed */
+      assigned: boolean;
+    };
+    Skill: {
+      id: string;
+      version: number;
+      /** @description Untrusted content */
+      name: string;
+      /** @description Untrusted content */
+      description: string;
+    };
+    SkillList: {
+      data: components["schemas"]["Skill"][];
+      /** @description Pass as cursor for the next page of skills; null on the last page */
+      nextCursor: string | null;
+    };
+    SkillDetail: {
+      id: string;
+      version: number;
+      /** @description Untrusted content */
+      name: string;
+      /** @description Untrusted content */
+      description: string;
+      /** @description The skill's instructions; untrusted content */
+      body: string;
     };
     Error: {
       code: string;
@@ -671,7 +1473,7 @@ export interface components {
         "application/json": components["schemas"]["ErrorResponse"];
       };
     };
-    /** @description idempotency_conflict: the Idempotency-Key was used for a different request. idempotency_in_progress: the first request with this key hasn't finished. invalid_state: the request can't go ahead as things stand, such as a generation that needs a person's approval in ZeroGen. */
+    /** @description idempotency_conflict: the Idempotency-Key was used for a different request. idempotency_in_progress: the first request with this key hasn't finished. invalid_state: the request can't go ahead as things stand, such as a run that needs a person's approval in ZeroGen. */
     Conflict: {
       headers: {
         "Request-Id": components["headers"]["Request-Id"];
@@ -754,7 +1556,7 @@ export interface components {
   parameters: {
     /** @description Makes retries safe: a retry with the same key and body returns the first response for 24 hours instead of repeating the work. Reusing a key with a different body returns 409. */
     IdempotencyKey: string;
-    /** @description wait=N holds the response up to N seconds (at most 60) until the generation ends. */
+    /** @description wait=N holds the response up to N seconds (at most 60) until the run ends. */
     Prefer: string;
   };
   requestBodies: never;
@@ -852,7 +1654,7 @@ export interface operations {
   listModels: {
     parameters: {
       query?: {
-        capability?: "image" | "video";
+        capability?: "image" | "video" | "speech";
         /** @description The model ID's operation segment */
         operation?:
           | "generate"
@@ -863,16 +1665,19 @@ export interface operations {
           | "text-to-video"
           | "image-to-video"
           | "first-last-frame-to-video"
+          | "keyframes-to-video"
           | "reference-to-video"
           | "audio-to-video"
           | "video-to-video"
           | "extend-video"
           | "motion-control"
+          | "lip-sync"
           | "clean-plate"
           | "render-to-real"
           | "hdr"
           | "outpaint"
-          | "reference-video-to-video";
+          | "reference-video-to-video"
+          | "text-to-speech";
         /** @description Search model IDs and labels, including the maker and related operations */
         q?: string;
         /** @description Video models accepting at least these frame slots */
@@ -953,7 +1758,7 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
-  quoteGeneration: {
+  quoteRun: {
     parameters: {
       query?: never;
       header?: {
@@ -974,7 +1779,7 @@ export interface operations {
          *       }
          *     }
          */
-        "application/json": components["schemas"]["CreateGenerationRequest"];
+        "application/json": components["schemas"]["CreateRunRequest"];
       };
     };
     responses: {
@@ -1007,14 +1812,14 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
-  listGenerations: {
+  listRuns: {
     parameters: {
       query?: {
-        /** @description Only generations in this project */
+        /** @description Only runs in this project */
         projectId?: string;
-        /** @description Only generations filed in this folder; needs projectId */
+        /** @description Only runs filed in this folder; needs projectId */
         folderId?: string;
-        /** @description Generations per page; default 10 */
+        /** @description Runs per page; default 10 */
         limit?: number;
         /** @description nextCursor from the previous page, with the same filters */
         cursor?: string;
@@ -1025,7 +1830,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description A page of generations. */
+      /** @description A page of runs. */
       200: {
         headers: {
           "Request-Id": components["headers"]["Request-Id"];
@@ -1035,7 +1840,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["GenerationList"];
+          "application/json": components["schemas"]["RunList"];
         };
       };
       400: components["responses"]["BadRequest"];
@@ -1047,13 +1852,13 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
-  createGeneration: {
+  createRun: {
     parameters: {
       query?: never;
       header?: {
         /** @description Makes retries safe: a retry with the same key and body returns the first response for 24 hours instead of repeating the work. Reusing a key with a different body returns 409. */
         "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
-        /** @description wait=N holds the response up to N seconds (at most 60) until the generation ends. */
+        /** @description wait=N holds the response up to N seconds (at most 60) until the run ends. */
         Prefer?: components["parameters"]["Prefer"];
       };
       path?: never;
@@ -1070,11 +1875,11 @@ export interface operations {
          *       }
          *     }
          */
-        "application/json": components["schemas"]["CreateGenerationRequest"];
+        "application/json": components["schemas"]["CreateRunRequest"];
       };
     };
     responses: {
-      /** @description The generation has ended, within the requested wait. */
+      /** @description The run has ended, within the requested wait. */
       200: {
         headers: {
           "Request-Id": components["headers"]["Request-Id"];
@@ -1089,10 +1894,10 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["Generation"];
+          "application/json": components["schemas"]["Run"];
         };
       };
-      /** @description The generation started and has not ended yet. */
+      /** @description The run started and has not ended yet. */
       202: {
         headers: {
           "Request-Id": components["headers"]["Request-Id"];
@@ -1107,7 +1912,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["Generation"];
+          "application/json": components["schemas"]["Run"];
         };
       };
       400: components["responses"]["BadRequest"];
@@ -1123,22 +1928,22 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
-  getGeneration: {
+  getRun: {
     parameters: {
       query?: never;
       header?: {
-        /** @description wait=N holds the response up to N seconds (at most 60) until the generation ends. */
+        /** @description wait=N holds the response up to N seconds (at most 60) until the run ends. */
         Prefer?: components["parameters"]["Prefer"];
       };
       path: {
-        /** @description The generation's ID */
+        /** @description The run's ID */
         id: string;
       };
       cookie?: never;
     };
     requestBody?: never;
     responses: {
-      /** @description The generation. */
+      /** @description The run. */
       200: {
         headers: {
           "Request-Id": components["headers"]["Request-Id"];
@@ -1151,10 +1956,10 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["Generation"];
+          "application/json": components["schemas"]["Run"];
         };
       };
-      /** @description With `Prefer: wait`, the generation had not ended when the wait ran out. */
+      /** @description With `Prefer: wait`, the run had not ended when the wait ran out. */
       202: {
         headers: {
           "Request-Id": components["headers"]["Request-Id"];
@@ -1167,7 +1972,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["Generation"];
+          "application/json": components["schemas"]["Run"];
         };
       };
       400: components["responses"]["BadRequest"];
@@ -1179,7 +1984,7 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
-  cancelGeneration: {
+  cancelRun: {
     parameters: {
       query?: never;
       header?: {
@@ -1187,14 +1992,14 @@ export interface operations {
         "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
       };
       path: {
-        /** @description The generation's ID */
+        /** @description The run's ID */
         id: string;
       };
       cookie?: never;
     };
     requestBody?: never;
     responses: {
-      /** @description The generation. */
+      /** @description The run. */
       200: {
         headers: {
           "Request-Id": components["headers"]["Request-Id"];
@@ -1207,7 +2012,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["Generation"];
+          "application/json": components["schemas"]["Run"];
         };
       };
       400: components["responses"]["BadRequest"];
@@ -1356,6 +2161,1006 @@ export interface operations {
       409: components["responses"]["Conflict"];
       413: components["responses"]["PayloadTooLarge"];
       415: components["responses"]["UnsupportedMediaType"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  listProjects: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The projects. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProjectList"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  searchAssets: {
+    parameters: {
+      query?: {
+        /** @description Only assets in this project */
+        projectId?: string;
+        /** @description Only assets directly in this folder, or `unfiled` for assets in no folder; with `q`, also its subfolders. Needs projectId */
+        folderId?: string | "unfiled";
+        /** @description Only the organization's favorites */
+        favorite?: "true";
+        /** @description Only assets with any of these active labels; repeat the parameter */
+        labelId?: string[];
+        /** @description Search asset names: at least two characters, and every one of the first eight words must match, ignoring case */
+        q?: string;
+        /** @description Only this media type */
+        type?: "image" | "video" | "audio" | "model3d";
+        /** @description Only assets that came about this way */
+        origin?: "generated" | "upload" | "derived";
+        /** @description Only assets in any of these resolution tiers; repeat the parameter */
+        resolution?: ("4k" | "1440p" | "1080p" | "720p" | "sd" | "2k" | "1k" | "0.5k")[];
+        /** @description Order by creation; default newest */
+        sort?: "newest" | "oldest";
+        /** @description Assets per page; default 20 */
+        limit?: number;
+        /** @description nextCursor from the previous page, with the same filters */
+        cursor?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of assets. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AssetList"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  getAsset: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description The asset's ID */
+        assetId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The asset. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AssetDetail"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  getAssetLineage: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description The asset's ID */
+        assetId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The asset's lineage. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Lineage"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  getAssetDownload: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description The asset's ID */
+        assetId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Where to download the file. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AssetDownload"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  listAssetFolders: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description The asset's ID */
+        assetId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The asset's folders. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AssetFolders"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  updateAsset: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description The project's ID */
+        projectId: string;
+        /** @description The asset's ID */
+        assetId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        /**
+         * @example {
+         *       "name": "Hero shot",
+         *       "favorite": true
+         *     }
+         */
+        "application/json": components["schemas"]["UpdateAssetRequest"];
+      };
+    };
+    responses: {
+      /** @description What the request changed. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AssetChange"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      413: components["responses"]["PayloadTooLarge"];
+      415: components["responses"]["UnsupportedMediaType"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  addLabel: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Makes retries safe: a retry with the same key and body returns the first response for 24 hours instead of repeating the work. Reusing a key with a different body returns 409. */
+        "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        /** @description The project's ID */
+        projectId: string;
+        /** @description The label's ID */
+        labelId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        /**
+         * @example {
+         *       "assetIds": [
+         *         "3f6c2a1e-8b4d-4e2a-9c7f-1a2b3c4d5e6f"
+         *       ]
+         *     }
+         */
+        "application/json": components["schemas"]["LabelAssetsRequest"];
+      };
+    };
+    responses: {
+      /** @description What the request changed. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          "Idempotent-Replayed": components["headers"]["Idempotent-Replayed"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["LabelAssetsChange"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      415: components["responses"]["UnsupportedMediaType"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  removeLabel: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Makes retries safe: a retry with the same key and body returns the first response for 24 hours instead of repeating the work. Reusing a key with a different body returns 409. */
+        "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        /** @description The project's ID */
+        projectId: string;
+        /** @description The label's ID */
+        labelId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        /**
+         * @example {
+         *       "assetIds": [
+         *         "3f6c2a1e-8b4d-4e2a-9c7f-1a2b3c4d5e6f"
+         *       ]
+         *     }
+         */
+        "application/json": components["schemas"]["LabelAssetsRequest"];
+      };
+    };
+    responses: {
+      /** @description What the request changed. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          "Idempotent-Replayed": components["headers"]["Idempotent-Replayed"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["LabelAssetsChange"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      415: components["responses"]["UnsupportedMediaType"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  listFolders: {
+    parameters: {
+      query?: {
+        /** @description Folders per page; default 50 */
+        limit?: number;
+        /** @description nextCursor from the previous page, with the same filters */
+        cursor?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The project's ID */
+        projectId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of folders. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FolderList"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  createFolder: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Makes retries safe: a retry with the same key and body returns the first response for 24 hours instead of repeating the work. Reusing a key with a different body returns 409. */
+        "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        /** @description The project's ID */
+        projectId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        /**
+         * @example {
+         *       "name": "Shots"
+         *     }
+         */
+        "application/json": components["schemas"]["CreateFolderRequest"];
+      };
+    };
+    responses: {
+      /** @description The new folder. */
+      201: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          "Idempotent-Replayed": components["headers"]["Idempotent-Replayed"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Folder"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      415: components["responses"]["UnsupportedMediaType"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  updateFolder: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description The project's ID */
+        projectId: string;
+        /** @description The folder's ID */
+        folderId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        /**
+         * @example {
+         *       "name": "Shots, final"
+         *     }
+         */
+        "application/json": components["schemas"]["UpdateFolderRequest"];
+      };
+    };
+    responses: {
+      /** @description The folder. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Folder"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      413: components["responses"]["PayloadTooLarge"];
+      415: components["responses"]["UnsupportedMediaType"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  addToFolder: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Makes retries safe: a retry with the same key and body returns the first response for 24 hours instead of repeating the work. Reusing a key with a different body returns 409. */
+        "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        /** @description The project's ID */
+        projectId: string;
+        /** @description The folder's ID */
+        folderId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        /**
+         * @example {
+         *       "assetIds": [
+         *         "3f6c2a1e-8b4d-4e2a-9c7f-1a2b3c4d5e6f"
+         *       ]
+         *     }
+         */
+        "application/json": components["schemas"]["FolderAssetsRequest"];
+      };
+    };
+    responses: {
+      /** @description What the request changed. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          "Idempotent-Replayed": components["headers"]["Idempotent-Replayed"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FolderAssetsChange"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      415: components["responses"]["UnsupportedMediaType"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  moveAssets: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Makes retries safe: a retry with the same key and body returns the first response for 24 hours instead of repeating the work. Reusing a key with a different body returns 409. */
+        "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        /** @description The project's ID */
+        projectId: string;
+        /** @description The folder's ID */
+        folderId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        /**
+         * @example {
+         *       "assetIds": [
+         *         "3f6c2a1e-8b4d-4e2a-9c7f-1a2b3c4d5e6f"
+         *       ],
+         *       "fromFolderId": "7c1d2e3f-4a5b-4c6d-8e9f-0a1b2c3d4e5f"
+         *     }
+         */
+        "application/json": components["schemas"]["MoveAssetsRequest"];
+      };
+    };
+    responses: {
+      /** @description What the request changed. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          "Idempotent-Replayed": components["headers"]["Idempotent-Replayed"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FolderAssetsChange"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      415: components["responses"]["UnsupportedMediaType"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  removeFromFolder: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Makes retries safe: a retry with the same key and body returns the first response for 24 hours instead of repeating the work. Reusing a key with a different body returns 409. */
+        "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        /** @description The project's ID */
+        projectId: string;
+        /** @description The folder's ID */
+        folderId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        /**
+         * @example {
+         *       "assetIds": [
+         *         "3f6c2a1e-8b4d-4e2a-9c7f-1a2b3c4d5e6f"
+         *       ]
+         *     }
+         */
+        "application/json": components["schemas"]["FolderAssetsRequest"];
+      };
+    };
+    responses: {
+      /** @description What the request changed. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          "Idempotent-Replayed": components["headers"]["Idempotent-Replayed"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FolderAssetsChange"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      415: components["responses"]["UnsupportedMediaType"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  listNamingPresets: {
+    parameters: {
+      query?: {
+        /** @description Presets per page; default 20 */
+        limit?: number;
+        /** @description nextCursor from the previous page, with the same filters */
+        cursor?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The project's ID */
+        projectId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of naming presets. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["NamingPresetList"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  listLabels: {
+    parameters: {
+      query?: {
+        /** @description Also list archived labels */
+        includeArchived?: "true" | "false";
+        /** @description Labels per page; default 20 */
+        limit?: number;
+        /** @description nextCursor from the previous page, with the same filters */
+        cursor?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of labels. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["LabelList"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  createLabel: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Makes retries safe: a retry with the same key and body returns the first response for 24 hours instead of repeating the work. Reusing a key with a different body returns 409. */
+        "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        /**
+         * @example {
+         *       "name": "Needs review",
+         *       "color": "#ef4444"
+         *     }
+         */
+        "application/json": components["schemas"]["CreateLabelRequest"];
+      };
+    };
+    responses: {
+      /** @description The new label. */
+      201: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          "Idempotent-Replayed": components["headers"]["Idempotent-Replayed"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Label"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      415: components["responses"]["UnsupportedMediaType"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  updateLabel: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description The label's ID */
+        labelId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        /**
+         * @example {
+         *       "name": "Approved",
+         *       "description": "Signed off by the client",
+         *       "color": "#22c55e"
+         *     }
+         */
+        "application/json": components["schemas"]["UpdateLabelRequest"];
+      };
+    };
+    responses: {
+      /** @description The label. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Label"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      413: components["responses"]["PayloadTooLarge"];
+      415: components["responses"]["UnsupportedMediaType"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  archiveLabel: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Makes retries safe: a retry with the same key and body returns the first response for 24 hours instead of repeating the work. Reusing a key with a different body returns 409. */
+        "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        /** @description The label's ID */
+        labelId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The label. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          "Idempotent-Replayed": components["headers"]["Idempotent-Replayed"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Label"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      415: components["responses"]["UnsupportedMediaType"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  restoreLabel: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Makes retries safe: a retry with the same key and body returns the first response for 24 hours instead of repeating the work. Reusing a key with a different body returns 409. */
+        "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        /** @description The label's ID */
+        labelId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The label. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          "Idempotent-Replayed": components["headers"]["Idempotent-Replayed"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Label"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      415: components["responses"]["UnsupportedMediaType"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  listSkills: {
+    parameters: {
+      query?: {
+        /** @description Also list this project's shared skills */
+        projectId?: string;
+        /** @description nextCursor from the previous page, with the same filters */
+        cursor?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of up to 100 skills. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SkillList"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  getSkill: {
+    parameters: {
+      query?: {
+        /** @description The project whose shared skill this is */
+        projectId?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The skill's ID */
+        skillId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The skill. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SkillDetail"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
       429: components["responses"]["TooManyRequests"];
       500: components["responses"]["InternalError"];
       503: components["responses"]["ServiceUnavailable"];

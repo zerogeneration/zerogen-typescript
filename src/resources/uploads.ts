@@ -33,7 +33,7 @@ const CONTENT_TYPES: Record<string, ContentType> = {
 
 export type UploadSource = Blob | ArrayBuffer | Uint8Array;
 
-/** An upload whose Library asset is ready to use as a generation input. */
+/** An upload whose Library asset is ready to use as a run input. */
 export type ReadyUpload = Upload & { status: "ready"; assetId: string };
 
 export interface UploadFileOptions extends Omit<RequestOptions, "idempotencyKey"> {
@@ -61,7 +61,7 @@ export class Uploads {
 
   /**
    * Uploads a file into the Library and resolves when it's ready to use as a
-   * generation input, with its `assetId`. In Node.js, read a file with
+   * run input, with its `assetId`. In Node.js, read a file with
    * `fs.openAsBlob(path)`.
    */
   async upload(file: UploadSource, options: UploadFileOptions = {}): Promise<ReadyUpload> {
@@ -89,7 +89,7 @@ export class Uploads {
       await this.#client.send(
         upload.upload.url,
         { method: upload.upload.method, headers: upload.upload.headers, body: blob },
-        { ...rest, timeout: rest.timeout ?? null },
+        { ...rest, timeout: rest.timeout ?? null, storage: true },
       );
       upload = await this.complete(upload.id, rest);
     }

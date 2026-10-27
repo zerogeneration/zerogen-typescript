@@ -37,10 +37,10 @@ describe("ZeroGen", () => {
   });
 
   it("gives each POST an idempotency key, and sends no body or content type when it has none", async () => {
-    const { fetch, calls } = fakeFetch(json({ id: "g1" }), json({ id: "g1" }));
+    const { fetch, calls } = fakeFetch(json({ id: "r1" }), json({ id: "r1" }));
     const zerogen = client(fetch);
-    await zerogen.generations.cancel("g1");
-    await zerogen.generations.cancel("g1", { idempotencyKey: "mine" });
+    await zerogen.runs.cancel("r1");
+    await zerogen.runs.cancel("r1", { idempotencyKey: "mine" });
     expect(calls[0]?.headers["idempotency-key"]).toMatch(/^[0-9a-f-]{36}$/u);
     expect(calls[0]?.headers["content-type"]).toBeUndefined();
     expect(calls[0]?.body).toBeUndefined();
@@ -50,7 +50,7 @@ describe("ZeroGen", () => {
   it("throws the error envelope with its request ID", async () => {
     const { fetch } = fakeFetch(apiError(400, "validation_failed", { param: "output.count" }));
     const error = await client(fetch)
-      .generations.create({ model: "a/b/generate" })
+      .runs.create({ model: "a/b/generate" })
       .catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(ZeroGenError);
     expect(error).toMatchObject({
@@ -69,10 +69,10 @@ describe("ZeroGen", () => {
         retryable: true,
         headers: { "Retry-After": "0" },
       }),
-      json({ id: "g1", status: "queued" }, 202),
+      json({ id: "r1", status: "queued" }, 202),
     );
-    const generation = await client(fetch).generations.create({ model: "a/b/generate" });
-    expect(generation.id).toBe("g1");
+    const run = await client(fetch).runs.create({ model: "a/b/generate" });
+    expect(run.id).toBe("r1");
     expect(calls).toHaveLength(3);
     expect(new Set(calls.map((call) => call.headers["idempotency-key"])).size).toBe(1);
   });
