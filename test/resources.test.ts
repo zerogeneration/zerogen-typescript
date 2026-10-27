@@ -5,22 +5,22 @@ import { fakeFetch, json } from "./fake-fetch.js";
 const client = (fetch: ReturnType<typeof fakeFetch>["fetch"]) =>
   new ZeroGen({ apiKey: "zg_test_key", fetch });
 
-describe("generations", () => {
-  it("createAndWait holds the create, then waits on the generation until it ends", async () => {
+describe("runs", () => {
+  it("createAndWait holds the create, then waits on the run until it ends", async () => {
     const { fetch, calls } = fakeFetch(
-      json({ id: "g1", status: "running" }, 202),
-      json({ id: "g1", status: "running" }),
-      json({ id: "g1", status: "succeeded", outputs: [] }),
+      json({ id: "r1", status: "running" }, 202),
+      json({ id: "r1", status: "running" }),
+      json({ id: "r1", status: "succeeded", outputs: [] }),
     );
-    const generation = await client(fetch).generations.createAndWait({
+    const run = await client(fetch).runs.createAndWait({
       model: "openai/gpt-image-2/generate",
       prompt: "A lighthouse at dawn",
     });
-    expect(generation.status).toBe("succeeded");
+    expect(run.status).toBe("succeeded");
     expect(calls.map((call) => `${call.method} ${call.url} ${call.headers.prefer}`)).toEqual([
-      "POST https://api.zerogen.com/v1/generations wait=60",
-      "GET https://api.zerogen.com/v1/generations/g1 wait=60",
-      "GET https://api.zerogen.com/v1/generations/g1 wait=60",
+      "POST https://api.zerogen.com/v1/runs wait=60",
+      "GET https://api.zerogen.com/v1/runs/r1 wait=60",
+      "GET https://api.zerogen.com/v1/runs/r1 wait=60",
     ]);
     expect(JSON.parse(calls[0]?.body as string)).toEqual({
       model: "openai/gpt-image-2/generate",
@@ -28,25 +28,25 @@ describe("generations", () => {
     });
   });
 
-  it("createAndWait returns a generation that ended within the create", async () => {
-    const { fetch, calls } = fakeFetch(json({ id: "g1", status: "failed", error: {} }));
-    const generation = await client(fetch).generations.createAndWait({ model: "a/b/generate" });
-    expect(generation.status).toBe("failed");
+  it("createAndWait returns a run that ended within the create", async () => {
+    const { fetch, calls } = fakeFetch(json({ id: "r1", status: "failed", error: {} }));
+    const run = await client(fetch).runs.createAndWait({ model: "a/b/generate" });
+    expect(run.status).toBe("failed");
     expect(calls).toHaveLength(1);
   });
 
   it("lists every page with the same filters", async () => {
     const { fetch, calls } = fakeFetch(
-      json({ data: [{ id: "g1" }, { id: "g2" }], nextCursor: "c2" }),
-      json({ data: [{ id: "g3" }], nextCursor: null }),
+      json({ data: [{ id: "r1" }, { id: "r2" }], nextCursor: "c2" }),
+      json({ data: [{ id: "r3" }], nextCursor: null }),
     );
     const ids: string[] = [];
-    for await (const generation of client(fetch).generations.list({ projectId: "p1", limit: 2 }))
-      ids.push(generation.id);
-    expect(ids).toEqual(["g1", "g2", "g3"]);
+    for await (const run of client(fetch).runs.list({ projectId: "p1", limit: 2 }))
+      ids.push(run.id);
+    expect(ids).toEqual(["r1", "r2", "r3"]);
     expect(calls.map((call) => call.url)).toEqual([
-      "https://api.zerogen.com/v1/generations?projectId=p1&limit=2",
-      "https://api.zerogen.com/v1/generations?projectId=p1&limit=2&cursor=c2",
+      "https://api.zerogen.com/v1/runs?projectId=p1&limit=2",
+      "https://api.zerogen.com/v1/runs?projectId=p1&limit=2&cursor=c2",
     ]);
   });
 

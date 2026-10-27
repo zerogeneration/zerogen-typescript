@@ -1,7 +1,13 @@
-import { ZeroGenConnectionError, ZeroGenError } from "./errors.js";
+import { storageError, ZeroGenConnectionError, ZeroGenError } from "./errors.js";
 import { Page, type PageBody, PagePromise } from "./pagination.js";
-import { Generations } from "./resources/generations.js";
+import { Assets } from "./resources/assets.js";
+import { Folders } from "./resources/folders.js";
+import { Labels } from "./resources/labels.js";
 import { Models } from "./resources/models.js";
+import { NamingPresets } from "./resources/naming-presets.js";
+import { Projects } from "./resources/projects.js";
+import { Runs } from "./resources/runs.js";
+import { Skills } from "./resources/skills.js";
 import { Uploads } from "./resources/uploads.js";
 import type { Balance, BalanceQuery, Me } from "./types.js";
 import { VERSION } from "./version.js";
@@ -13,7 +19,7 @@ export interface ClientOptions {
   baseURL?: string;
   /**
    * Milliseconds before one attempt of a request is abandoned. A request that
-   * waits on a generation gets its wait added. Default 120,000.
+   * waits on a run gets its wait added. Default 120,000.
    */
   timeout?: number;
   /** How many times to retry a connection error or a retryable response. Default 2. */
@@ -42,11 +48,12 @@ export interface RequestOptions {
 
 /** @internal */
 export interface ApiCall {
-  method: "GET" | "POST";
+  method: "GET" | "POST" | "PATCH" | "PUT";
   path: string;
-  query?: Record<string, string | number | boolean | undefined>;
+  /** An array repeats the parameter once per value. */
+  query?: Record<string, string | number | boolean | readonly string[] | undefined>;
   body?: unknown;
-  /** Seconds the API may hold the response until a generation ends, sent as `Prefer: wait`. */
+  /** Seconds the API may hold the response until a run ends, sent as `Prefer: wait`. */
   wait?: number;
 }
 
@@ -58,9 +65,15 @@ export class ZeroGen {
   readonly baseURL: string;
   readonly timeout: number;
   readonly maxRetries: number;
-  readonly generations: Generations;
+  readonly runs: Runs;
   readonly models: Models;
   readonly uploads: Uploads;
+  readonly projects: Projects;
+  readonly assets: Assets;
+  readonly folders: Folders;
+  readonly labels: Labels;
+  readonly namingPresets: NamingPresets;
+  readonly skills: Skills;
   readonly #apiKey: string;
   readonly #fetch: (input: string, init: RequestInit) => Promise<Response>;
   readonly #headers: Record<string, string>;
@@ -77,9 +90,15 @@ export class ZeroGen {
     this.maxRetries = options.maxRetries ?? 2;
     this.#fetch = (input, init) => (options.fetch ?? globalThis.fetch)(input, init);
     this.#headers = options.defaultHeaders ?? {};
-    this.generations = new Generations(this);
+    this.runs = new Runs(this);
     this.models = new Models(this);
     this.uploads = new Uploads(this);
+    this.projects = new Projects(this);
+    this.assets = new Assets(this);
+    this.folders = new Folders(this);
+    this.labels = new Labels(this);
+    this.namingPresets = new NamingPresets(this);
+    this.skills = new Skills(this);
   }
 
   /** The API key, the organization it belongs to, and what it can do. */
@@ -96,7 +115,8 @@ export class ZeroGen {
   async request<Result>(call: ApiCall, options: RequestOptions = {}): Promise<Result> {
     const url = new URL(this.baseURL + call.path);
     for (const [name, value] of Object.entries(call.query ?? {}))
-      if (value !== undefined) url.searchParams.set(name, String(value));
+      for (const item of Array.isArray(value) ? value : [value])
+        if (item !== undefined) url.searchParams.append(name, String(item));
     const headers: Record<string, string> = {
       Accept: "application/json",
       "User-Agent": `zerogen-typescript/${VERSION}`,
@@ -133,12 +153,13 @@ export class ZeroGen {
   /**
    * @internal Sends a request, retrying connection errors and retryable
    * responses, and resolves with the first successful response. A `timeout`
-   * of null sends without one.
+   * of null sends without one. A `storage` request goes to a signed storage
+   * URL: its errors never quote the response, which can echo the signature.
    */
   async send(
     url: string,
     init: RequestInit,
-    options: Omit<RequestOptions, "timeout"> & { timeout: number | null },
+    options: Omit<RequestOptions, "timeout"> & { timeout: number | null; storage?: boolean },
   ): Promise<Response> {
     const maxRetries = options.maxRetries ?? this.maxRetries;
     for (let attempt = 0; ; attempt++) {
@@ -162,7 +183,9 @@ export class ZeroGen {
         continue;
       }
       if (response.ok) return response;
-      const error = await ZeroGenError.from(response);
+      const error = options.storage
+        ? await storageError(response)
+        : await ZeroGenError.from(response);
       const delay =
         error.retryable && attempt < maxRetries ? retryDelay(response.headers, attempt) : undefined;
       if (delay === undefined) throw error;
