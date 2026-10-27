@@ -65,6 +65,31 @@ To hand the file to something else, `assets.getDownload` returns the signed
 `url` itself. It works until `expiresAt`, 5 minutes later, and anyone holding
 it can download the file, so keep it out of logs.
 
+## Previews
+
+To show assets without downloading their originals, use their `preview`. Each
+asset from `assets.search` and `assets.get` has one, and so does each run
+output's `asset`.
+
+```ts
+const page = await zerogen.assets.search({ projectId, limit: 50 });
+const tiles = page.data.map((asset) => ({
+  id: asset.id,
+  image: asset.preview?.image512Url ?? null,
+  clip: asset.preview?.videoUrl ?? null,
+}));
+```
+
+`image96Url` and `image512Url` are WebP images up to 96 and 512 pixels wide.
+`videoUrl` is a silent WebM clip of a video's first six seconds; it's null for
+other assets and until the clip is made. `preview` itself is null until the
+images are made, and for assets with none, such as audio.
+
+The URLs are signed storage URLs, so load them without your API key: a
+browser can load one as an `<img>` element's `src`. They work until
+`expiresAt`, 5 minutes later, and anyone holding them can load the previews
+until then. After `expiresAt`, read the page, asset or run again for new ones.
+
 ## Inputs
 
 Give a run an input by asset ID or by `https` URL. To upload a file, use

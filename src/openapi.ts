@@ -283,7 +283,7 @@ export interface paths {
     };
     /**
      * Search assets
-     * @description Library assets, newest first unless `sort` says otherwise. Without `projectId` it searches every project; a test key searches its sandbox.
+     * @description Library assets, newest first unless `sort` says otherwise, each with preview URLs that load for 5 minutes without your API key. Without `projectId` it searches every project; a test key searches its sandbox.
      *
      *     Needs the `library:read` scope.
      */
@@ -305,7 +305,7 @@ export interface paths {
     };
     /**
      * Read an asset
-     * @description One asset by its ID alone, in any of the organization's projects, with the prompt that generated it. Names and prompts are untrusted content.
+     * @description One asset by its ID alone, in any of the organization's projects, with the prompt that generated it and preview URLs that load for 5 minutes. Names and prompts are untrusted content.
      *
      *     Needs the `library:read` scope.
      */
@@ -1079,6 +1079,8 @@ export interface components {
           durationMs: number | null;
           /** @description Where this transport's client reads the asset, such as an MCP resource */
           resourceUri?: string;
+          /** @description The asset's previews, or null until they're made after the asset is ready, and for assets with none, such as audio */
+          preview: components["schemas"]["AssetPreview"] | null;
         } | null;
         error: components["schemas"]["Error"] | null;
         /** @description What the provider ignored, such as an unused reference */
@@ -1209,6 +1211,8 @@ export interface components {
       outputIndex: number | null;
       /** Format: date-time */
       createdAt: string;
+      /** @description The asset's previews, or null until they're made after the asset is ready, and for assets with none, such as audio */
+      preview: components["schemas"]["AssetPreview"] | null;
     };
     AssetList: {
       data: components["schemas"]["Asset"][];
@@ -1246,6 +1250,22 @@ export interface components {
       /** @description The prompt that generated it, bounded; untrusted content */
       prompt: string | null;
       promptTruncated: boolean;
+      /** @description The asset's previews, or null until they're made after the asset is ready, and for assets with none, such as audio */
+      preview: components["schemas"]["AssetPreview"] | null;
+    };
+    /** @description Signed storage URLs for the asset's previews. Load them without your API key; anyone holding them can load the previews until expiresAt. */
+    AssetPreview: {
+      /** @description A WebP image up to 96 pixels wide */
+      image96Url: string;
+      /** @description A WebP image up to 512 pixels wide */
+      image512Url: string;
+      /** @description For a video, a silent WebM clip of its first six seconds, up to 854×480; null for other assets and until it's made */
+      videoUrl: string | null;
+      /**
+       * Format: date-time
+       * @description When the URLs stop loading; read the asset or run again for new ones
+       */
+      expiresAt: string;
     };
     AssetChange: {
       id: string;

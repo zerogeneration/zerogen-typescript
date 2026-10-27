@@ -26,8 +26,8 @@ export class Assets {
   }
 
   /**
-   * Searches Library assets, newest first unless `sort` says otherwise.
-   * Without `projectId` it searches every project.
+   * Searches Library assets, newest first unless `sort` says otherwise, each
+   * with its `preview`. Without `projectId` it searches every project.
    */
   search(query: AssetSearchQuery = {}, options?: RequestOptions): PagePromise<Asset> {
     const { favorite, ...rest } = query;
@@ -41,7 +41,10 @@ export class Assets {
     );
   }
 
-  /** Reads an asset in any of the organization's projects, with the prompt that generated it. */
+  /**
+   * Reads an asset in any of the organization's projects, with the prompt that
+   * generated it and its `preview`.
+   */
   get(assetId: string, options?: RequestOptions): Promise<AssetDetail> {
     return this.#client.request({ method: "GET", path: path(assetId) }, options);
   }

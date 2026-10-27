@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import ZeroGen from "../src/index.js";
+import ZeroGen, { type AssetPreview, type Run } from "../src/index.js";
 import { fakeFetch, json } from "./fake-fetch.js";
 
 const client = (fetch: ReturnType<typeof fakeFetch>["fetch"]) =>
@@ -48,6 +48,37 @@ describe("runs", () => {
       "https://api.zerogen.com/v1/runs?projectId=p1&limit=2",
       "https://api.zerogen.com/v1/runs?projectId=p1&limit=2&cursor=c2",
     ]);
+  });
+
+  it("reads each output's preview, or null before it's made", async () => {
+    const preview: AssetPreview = {
+      image96Url: "https://storage.example.com/a0-96.webp?X-Amz-Signature=s96",
+      image512Url: "https://storage.example.com/a0-512.webp?X-Amz-Signature=s512",
+      videoUrl: "https://storage.example.com/a0.webm?X-Amz-Signature=sv",
+      expiresAt: "2026-10-27T00:05:00.000Z",
+    };
+    const output = (index: number, assetPreview: AssetPreview | null): Run["outputs"][number] => ({
+      index,
+      status: "succeeded",
+      asset: {
+        id: `a${index}`,
+        mimeType: "video/mp4",
+        width: 1280,
+        height: 720,
+        durationMs: 8000,
+        preview: assetPreview,
+      },
+      error: null,
+    });
+    const { fetch } = fakeFetch(
+      json({ id: "r1", status: "succeeded", outputs: [output(0, preview), output(1, null)] }),
+    );
+    const run = await client(fetch).runs.get("r1");
+    const previews: (AssetPreview | null)[] = run.outputs.map(({ asset }) =>
+      asset ? asset.preview : null,
+    );
+    expect(previews).toEqual([preview, null]);
+    expect(run.outputs[0]?.asset?.preview?.videoUrl).toBe(preview.videoUrl);
   });
 
   it("awaits a list as its first page", async () => {

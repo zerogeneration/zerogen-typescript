@@ -17,6 +17,7 @@ export type Upload = Schemas["Upload"];
 export type Project = Schemas["Project"];
 export type Asset = Schemas["Asset"];
 export type AssetDetail = Schemas["AssetDetail"];
+export type AssetPreview = Schemas["AssetPreview"];
 export type UpdateAssetRequest = Schemas["UpdateAssetRequest"];
 export type AssetChange = Schemas["AssetChange"];
 export type Lineage = Schemas["Lineage"];
