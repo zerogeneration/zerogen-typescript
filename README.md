@@ -107,14 +107,14 @@ await zerogen.assets.update(projectId, assetId, { favorite: true });
 `projects.list` returns the organization's projects, and each run and asset
 names its `projectId`.
 
-| Resource | Methods |
-| --- | --- |
-| `projects` | `list` |
-| `assets` | `search`, `get`, `lineage`, `folders`, `getDownload`, `download`, `update` |
-| `folders` | `list`, `create`, `update`, `addAssets`, `moveAssets`, `removeAssets` |
-| `labels` | `list`, `create`, `update`, `archive`, `restore`, `addAssets`, `removeAssets` |
-| `namingPresets` | `list` |
-| `skills` | `list`, `get` |
+| Resource        | Methods                                                                       |
+| --------------- | ----------------------------------------------------------------------------- |
+| `projects`      | `list`                                                                        |
+| `assets`        | `search`, `get`, `lineage`, `folders`, `getDownload`, `download`, `update`    |
+| `folders`       | `list`, `create`, `update`, `addAssets`, `moveAssets`, `removeAssets`         |
+| `labels`        | `list`, `create`, `update`, `archive`, `restore`, `addAssets`, `removeAssets` |
+| `namingPresets` | `list`                                                                        |
+| `skills`        | `list`, `get`                                                                 |
 
 Methods take an asset's or folder's project as their first argument when the
 route names it. Asset names, prompts, folder names and skills come from your
