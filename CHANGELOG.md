@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.1
+
+- Types for asset previews. Each asset from `assets.search` and `assets.get`,
+  and each run output's `asset`, has a `preview`: an `AssetPreview` with
+  `image96Url`, `image512Url`, `videoUrl` and `expiresAt`, or null until the
+  previews are made. The URLs are signed: load them without your API key, and
+  read the asset or run again after `expiresAt`. 0.2.0 receives the same
+  field, untyped.
+
 ## 0.2.0
 
 This release follows the API's rename of generations to runs, and breaks
