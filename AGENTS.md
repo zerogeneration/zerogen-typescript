@@ -20,6 +20,7 @@ of the types generated from it.
   Retries follow the error's `retryable` and `Retry-After`; keep it that way.
 - Tests use a scripted `fetch` (`test/fake-fetch.ts`) and never call the API.
 - Before you commit, run `npm run check` (typecheck, Biome, tests, build).
+  CI runs it on every pull request, on Node 20, 22 and 24.
 
 ## Releases
 
