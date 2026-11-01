@@ -467,7 +467,7 @@ export interface paths {
     put?: never;
     /**
      * Create a folder
-     * @description Creates a folder at the project root or under `parentId`. With an `Idempotency-Key`, a retry returns the folder the first request created. A test key can't create folders.
+     * @description Creates a folder at the project root or under `parentId`. With `reuseExisting: true`, a folder with that name already under the parent is returned instead, so clients filing into the same path at once share one folder; create a path such as `SH010/anim` one folder at a time. With an `Idempotency-Key`, a retry returns the folder the first request created. A test key can't create folders.
      *
      *     Needs the `library:organize` scope.
      */
@@ -787,6 +787,8 @@ export interface components {
       parameters?: {
         [key: string]: string | number | boolean;
       };
+      /** @description Only for models whose schema lists seed: the same seed with the same request reproduces a result as closely as the model allows. The model picks one when omitted */
+      seed?: number;
       /** @description Refuse to start when the quote exceeds this amount */
       maxCostMicroUsd?: number;
       /** @description Test keys only: rehearse each output's outcome; live keys are refused when it is present */
@@ -860,6 +862,8 @@ export interface components {
       name: string;
       /** @description The parent folder; omit or null for the project root */
       parentId?: string | null;
+      /** @description When true, return the folder with this name that's already under the parent, with 200, instead of making another. Names match after Unicode NFC, case-sensitively; the oldest wins when several do */
+      reuseExisting?: boolean;
     };
     UpdateFolderRequest: {
       name?: string;
@@ -2618,13 +2622,28 @@ export interface operations {
       content: {
         /**
          * @example {
-         *       "name": "Shots"
+         *       "name": "Shots",
+         *       "reuseExisting": true
          *     }
          */
         "application/json": components["schemas"]["CreateFolderRequest"];
       };
     };
     responses: {
+      /** @description A folder with that name was already there. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          "Idempotent-Replayed": components["headers"]["Idempotent-Replayed"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Folder"];
+        };
+      };
       /** @description The new folder. */
       201: {
         headers: {

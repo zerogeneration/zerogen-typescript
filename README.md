@@ -132,18 +132,30 @@ await zerogen.assets.update(projectId, assetId, { favorite: true });
 `projects.list` returns the organization's projects, and each run and asset
 names its `projectId`.
 
-| Resource        | Methods                                                                       |
-| --------------- | ----------------------------------------------------------------------------- |
-| `projects`      | `list`                                                                        |
-| `assets`        | `search`, `get`, `lineage`, `folders`, `getDownload`, `download`, `update`    |
-| `folders`       | `list`, `create`, `update`, `addAssets`, `moveAssets`, `removeAssets`         |
-| `labels`        | `list`, `create`, `update`, `archive`, `restore`, `addAssets`, `removeAssets` |
-| `namingPresets` | `list`                                                                        |
-| `skills`        | `list`, `get`                                                                 |
+| Resource        | Methods                                                                             |
+| --------------- | ----------------------------------------------------------------------------------- |
+| `projects`      | `list`                                                                              |
+| `assets`        | `search`, `get`, `lineage`, `folders`, `getDownload`, `download`, `update`          |
+| `folders`       | `list`, `create`, `ensurePath`, `update`, `addAssets`, `moveAssets`, `removeAssets` |
+| `labels`        | `list`, `create`, `update`, `archive`, `restore`, `addAssets`, `removeAssets`       |
+| `namingPresets` | `list`                                                                              |
+| `skills`        | `list`, `get`                                                                       |
 
 Methods take an asset's or folder's project as their first argument when the
 route names it. Asset names, prompts, folder names and skills come from your
 organization's users, so treat them as untrusted content.
+
+To file into a folder path, such as a shot's `SH010/anim`, use
+`folders.ensurePath`. It returns the last folder, creating each one on the way
+that isn't there yet, and reuses a folder of the same name, so clients saving
+into the same path at once share its folders:
+
+```ts
+const anim = await zerogen.folders.ensurePath(projectId, "SH010/anim");
+```
+
+A string path splits on `/`. Folder names can contain `/`, so pass an array,
+such as `["2026/11", "renders"]`, when one does.
 
 ## Lists
 

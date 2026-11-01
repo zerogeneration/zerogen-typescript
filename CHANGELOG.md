@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+This release needs the API that reuses folders by name.
+
+- `folders.ensurePath` returns the folder at a path such as `"SH010/anim"`,
+  creating each folder on the way that isn't there yet. It reuses a folder of
+  the same name under the same parent, so clients saving into one path at once
+  share its folders. Pass an array of names when a name contains `/`.
+- `folders.create` takes `reuseExisting`: with `true`, a folder of that name
+  already under the parent is returned instead of a second one.
+- `CreateRunRequest` has `seed`, for models that accept one.
+
 ## 0.2.1
 
 - Types for asset previews. Each asset from `assets.search` and `assets.get`,

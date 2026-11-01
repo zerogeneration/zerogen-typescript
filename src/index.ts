@@ -4,6 +4,7 @@ export type { ClientOptions, RequestOptions } from "./client.js";
 export { ZeroGenConnectionError, ZeroGenError } from "./errors.js";
 export { Page, PagePromise } from "./pagination.js";
 export type { AssetFile } from "./resources/assets.js";
+export type { EnsurePathOptions } from "./resources/folders.js";
 export { hasEnded, type WaitOptions } from "./resources/runs.js";
 export type { ReadyUpload, UploadFileOptions, UploadSource } from "./resources/uploads.js";
 export type * from "./types.js";

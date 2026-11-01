@@ -10,6 +10,15 @@ import type {
   UpdateFolderRequest,
 } from "../types.js";
 
+/**
+ * Each level of a path is its own create, with its own idempotency key, so
+ * `ensurePath` takes none.
+ */
+export interface EnsurePathOptions extends Omit<RequestOptions, "idempotencyKey"> {
+  /** The folder the path starts under; the project root by default. */
+  parentId?: string | null;
+}
+
 export class Folders {
   readonly #client: ZeroGen;
 
@@ -26,9 +35,43 @@ export class Folders {
     return this.#client.list({ method: "GET", path: path(projectId), query }, options);
   }
 
-  /** Creates a folder at the project root or under `parentId`. A test key can't create folders. */
+  /**
+   * Creates a folder at the project root or under `parentId`. With
+   * `reuseExisting`, a folder of that name already under the parent is
+   * returned instead. A test key can't create folders.
+   */
   create(projectId: string, body: CreateFolderRequest, options?: RequestOptions): Promise<Folder> {
     return this.#client.request({ method: "POST", path: path(projectId), body }, options);
+  }
+
+  /**
+   * Returns the folder at `folderPath`, such as `"SH010/anim"`, creating each
+   * folder on the way that isn't there yet. Each level is a create with
+   * `reuseExisting`, which returns the folder of that name already under its
+   * parent, so clients filing into the same path at once share its folders.
+   * A string splits on `/`; pass an array when a name contains `/`. The path
+   * starts under `parentId`, or at the project root.
+   */
+  async ensurePath(
+    projectId: string,
+    folderPath: string | readonly string[],
+    options: EnsurePathOptions = {},
+  ): Promise<Folder> {
+    const { parentId = null, ...request } = options;
+    const names =
+      typeof folderPath === "string"
+        ? folderPath.split("/").filter((name) => name.trim())
+        : [...folderPath];
+    if (names.length === 0) throw new TypeError("A folder path needs at least one folder name.");
+    let folder: Folder | undefined;
+    for (const name of names) {
+      folder = await this.create(
+        projectId,
+        { name, parentId: folder?.id ?? parentId, reuseExisting: true },
+        request,
+      );
+    }
+    return folder as Folder;
   }
 
   /**
