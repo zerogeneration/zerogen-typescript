@@ -115,6 +115,37 @@ describe("Library", () => {
     expect(calls[0]?.url).toBe(`${BASE}/projects/p%2F1/folders/f%201`);
   });
 
+  it("ensurePath finds or creates each folder of a path in turn", async () => {
+    const { fetch, calls } = fakeFetch(
+      json({ id: "f1", parentId: null, name: "Shots" }),
+      json({ id: "f2", parentId: "f1", name: "anim" }, 201),
+    );
+    const folder = await client(fetch).folders.ensurePath("p1", "/Shots//anim/");
+    expect(folder).toMatchObject({ id: "f2", parentId: "f1" });
+    expect(calls.map((call) => [call.url, JSON.parse(call.body as string)])).toEqual([
+      [`${BASE}/projects/p1/folders`, { name: "Shots", parentId: null, reuseExisting: true }],
+      [`${BASE}/projects/p1/folders`, { name: "anim", parentId: "f1", reuseExisting: true }],
+    ]);
+    expect(new Set(calls.map((call) => call.headers["idempotency-key"])).size).toBe(2);
+  });
+
+  it("ensurePath takes names that contain a slash as an array, under parentId", async () => {
+    const { fetch, calls } = fakeFetch(json({ id: "f2", parentId: "f0", name: "2026/11/01" }));
+    await client(fetch).folders.ensurePath("p1", ["2026/11/01"], { parentId: "f0" });
+    expect(JSON.parse(calls[0]?.body as string)).toEqual({
+      name: "2026/11/01",
+      parentId: "f0",
+      reuseExisting: true,
+    });
+  });
+
+  it("ensurePath refuses a path with no folder names before sending anything", async () => {
+    const { fetch, calls } = fakeFetch();
+    for (const empty of ["", "/", []])
+      await expect(client(fetch).folders.ensurePath("p1", empty)).rejects.toThrow(TypeError);
+    expect(calls).toEqual([]);
+  });
+
   it("searches assets with repeated filters, and sends favorite only when it's true", async () => {
     const { fetch, calls } = fakeFetch(
       json({ data: [{ id: "a1" }], nextCursor: "c2" }),
