@@ -57,7 +57,12 @@ export class Folders {
     folderPath: string | readonly string[],
     options: EnsurePathOptions = {},
   ): Promise<Folder> {
-    const { parentId = null, ...request } = options;
+    // A shared RequestOptions can still carry a key at runtime; each level needs its own.
+    const {
+      parentId = null,
+      idempotencyKey: _,
+      ...request
+    } = options as RequestOptions & EnsurePathOptions;
     const names =
       typeof folderPath === "string"
         ? folderPath.split("/").filter((name) => name.trim())

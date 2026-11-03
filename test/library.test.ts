@@ -3,6 +3,7 @@ import ZeroGen, {
   type Asset,
   type AssetDetail,
   type AssetPreview,
+  type RequestOptions,
   ZeroGenError,
 } from "../src/index.js";
 import { fakeFetch, json } from "./fake-fetch.js";
@@ -137,6 +138,18 @@ describe("Library", () => {
       parentId: "f0",
       reuseExisting: true,
     });
+  });
+
+  it("ensurePath gives each level its own key, even from options that carry one", async () => {
+    const { fetch, calls } = fakeFetch(
+      json({ id: "f1", parentId: null, name: "Shots" }),
+      json({ id: "f2", parentId: "f1", name: "anim" }),
+    );
+    const shared: RequestOptions = { idempotencyKey: "shared-key", timeout: 5_000 };
+    await client(fetch).folders.ensurePath("p1", "Shots/anim", shared);
+    const keys = calls.map((call) => call.headers["idempotency-key"]);
+    expect(keys).not.toContain("shared-key");
+    expect(new Set(keys).size).toBe(2);
   });
 
   it("ensurePath refuses a path with no folder names before sending anything", async () => {
