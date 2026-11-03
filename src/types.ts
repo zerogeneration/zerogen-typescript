@@ -15,6 +15,7 @@ export type Run = Schemas["Run"];
 export type CreateUploadRequest = Schemas["CreateUploadRequest"];
 export type Upload = Schemas["Upload"];
 export type Project = Schemas["Project"];
+export type Creator = Schemas["Creator"];
 export type Asset = Schemas["Asset"];
 export type AssetDetail = Schemas["AssetDetail"];
 export type AssetPreview = Schemas["AssetPreview"];
@@ -30,6 +31,9 @@ export type UpdateFolderRequest = Schemas["UpdateFolderRequest"];
 export type FolderAssetsRequest = Schemas["FolderAssetsRequest"];
 export type MoveAssetsRequest = Schemas["MoveAssetsRequest"];
 export type FolderAssetsChange = Schemas["FolderAssetsChange"];
+export type FolderDelete = Schemas["FolderDelete"];
+export type RestoreFolderRequest = Schemas["RestoreFolderRequest"];
+export type FolderRestore = Schemas["FolderRestore"];
 export type Label = Schemas["Label"];
 export type CreateLabelRequest = Schemas["CreateLabelRequest"];
 export type UpdateLabelRequest = Schemas["UpdateLabelRequest"];
@@ -48,6 +52,7 @@ export type AssetSearchQuery = Omit<Query<"searchAssets">, "favorite"> & {
   favorite?: boolean;
 };
 export type FolderListQuery = Query<"listFolders">;
+export type FolderDeleteQuery = Query<"deleteFolder">;
 export type LabelListQuery = Omit<Query<"listLabels">, "includeArchived"> & {
   /** Also list archived labels; owners and admins only. */
   includeArchived?: boolean;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import ZeroGen, { type AssetPreview, type Run } from "../src/index.js";
+import ZeroGen, { type AssetPreview, type Creator, type Run } from "../src/index.js";
 import { fakeFetch, json } from "./fake-fetch.js";
 
 const client = (fetch: ReturnType<typeof fakeFetch>["fetch"]) =>
@@ -79,6 +79,45 @@ describe("runs", () => {
     );
     expect(previews).toEqual([preview, null]);
     expect(run.outputs[0]?.asset?.preview?.videoUrl).toBe(preview.videoUrl);
+  });
+
+  it("sends a seed and labels with a run, and upscales a Draft output", async () => {
+    const { fetch, calls } = fakeFetch(
+      json({ id: "r1", status: "queued" }, 202),
+      json({ id: "r2", status: "queued" }, 202),
+    );
+    const zerogen = client(fetch);
+    await zerogen.runs.create({
+      model: "a/b/generate",
+      prompt: "A lighthouse at dawn",
+      seed: 7,
+      labelIds: ["l1"],
+    });
+    await zerogen.runs.create({
+      model: "a/b/generate",
+      upscaleDraft: { runId: "r1", outputIndex: 0, resolution: "1080p" },
+    });
+    expect(calls.map((call) => JSON.parse(call.body as string))).toEqual([
+      { model: "a/b/generate", prompt: "A lighthouse at dawn", seed: 7, labelIds: ["l1"] },
+      {
+        model: "a/b/generate",
+        upscaleDraft: { runId: "r1", outputIndex: 0, resolution: "1080p" },
+      },
+    ]);
+  });
+
+  it("reads who made a run, where, and its link", async () => {
+    const made: Pick<Run, "createdBy" | "createdVia" | "webUrl"> = {
+      createdBy: { id: "u1", name: null },
+      createdVia: "agent",
+      webUrl: "https://studio.example.com/generate/r1",
+    };
+    const { fetch } = fakeFetch(json({ id: "r1", status: "succeeded", outputs: [], ...made }));
+    const run = await client(fetch).runs.get("r1");
+    const creator: Creator | null = run.createdBy;
+    expect(creator).toEqual(made.createdBy);
+    expect(run.createdVia).toBe("agent");
+    expect(run.webUrl).toBe(made.webUrl);
   });
 
   it("awaits a list as its first page", async () => {

@@ -3,10 +3,13 @@ import ZeroGen, {
   type Asset,
   type AssetDetail,
   type AssetPreview,
+  type Creator,
+  type FolderDelete,
+  type FolderRestore,
   type RequestOptions,
   ZeroGenError,
 } from "../src/index.js";
-import { fakeFetch, json } from "./fake-fetch.js";
+import { apiError, fakeFetch, json } from "./fake-fetch.js";
 
 const client = (fetch: ReturnType<typeof fakeFetch>["fetch"]) =>
   new ZeroGen({ apiKey: "zg_test_key", fetch, defaultHeaders: { "X-Team": "studio" } });
@@ -44,6 +47,17 @@ describe("Library", () => {
         (z) => z.folders.update("p1", "f1", { parentId: null }),
         "/projects/p1/folders/f1",
         { parentId: null },
+      ],
+      [
+        "DELETE /projects/p1/folders/f1",
+        (z) => z.folders.delete("p1", "f1", { assets: "keep" }),
+        "/projects/p1/folders/f1?assets=keep",
+      ],
+      [
+        "POST /projects/p1/folders/restore",
+        (z) => z.folders.restore("p1", { eventId: "e1" }),
+        "/projects/p1/folders/restore",
+        { eventId: "e1" },
       ],
       [
         "POST /projects/p1/folders/f1/assets",
@@ -106,8 +120,35 @@ describe("Library", () => {
         calls[0]?.body === undefined ? undefined : JSON.parse(calls[0].body as string),
         name,
       ).toEqual(body);
-      expect(calls[0]?.headers["idempotency-key"] !== undefined, name).toBe(method === "POST");
+      expect(calls[0]?.headers["idempotency-key"] !== undefined, name).toBe(
+        method === "POST" || method === "DELETE",
+      );
     }
+  });
+
+  it("deletes a folder on one key across retries, and restores it by its eventId", async () => {
+    const deletion: FolderDelete = {
+      folderId: "f1",
+      eventId: "e1",
+      undoUntil: "2026-11-03T01:00:00.000Z",
+    };
+    const restored: FolderRestore = { rootId: "f1", parentId: null };
+    const { fetch, calls } = fakeFetch(
+      apiError(503, "service_unavailable", { retryable: true, headers: { "Retry-After": "0" } }),
+      json(deletion),
+      json(restored),
+    );
+    const zerogen = client(fetch);
+    const { eventId } = await zerogen.folders.delete("p1", "f1", { assets: "trash" });
+    expect(await zerogen.folders.restore("p1", { eventId })).toEqual(restored);
+    expect(calls[0]).toMatchObject({
+      method: "DELETE",
+      url: `${BASE}/projects/p1/folders/f1?assets=trash`,
+    });
+    expect(calls[0]?.body).toBeUndefined();
+    expect(calls[0]?.headers["content-type"]).toBeUndefined();
+    expect(calls[1]?.headers["idempotency-key"]).toBe(calls[0]?.headers["idempotency-key"]);
+    expect(JSON.parse(calls[2]?.body as string)).toEqual({ eventId: "e1" });
   });
 
   it("encodes IDs into the path", async () => {
@@ -187,6 +228,54 @@ describe("Library", () => {
   });
 });
 
+const asset = (id: string, fields: Partial<Asset> = {}): Asset => ({
+  id,
+  projectId: "p1",
+  name: "Lighthouse",
+  type: "image",
+  origin: "generated",
+  mimeType: "image/png",
+  sizeBytes: 5,
+  width: 1024,
+  height: 1024,
+  durationMs: null,
+  favorite: false,
+  labels: [],
+  runId: "r1",
+  outputIndex: 0,
+  createdBy: { id: "u1", name: "Ana" },
+  createdVia: "api",
+  createdAt: "2026-10-27T00:00:00.000Z",
+  webUrl: "https://studio.example.com/library/a1",
+  preview: null,
+  ...fields,
+});
+
+describe("who made an asset", () => {
+  it("reads who made each asset, where, and its link, or null when there's none", async () => {
+    const { fetch } = fakeFetch(
+      json({
+        data: [asset("a1"), asset("a2", { createdBy: null, createdVia: null, webUrl: null })],
+        nextCursor: null,
+      }),
+    );
+    const page = await client(fetch).assets.search();
+    const creators: (Creator | null)[] = page.data.map((listed) => listed.createdBy);
+    expect(creators).toEqual([{ id: "u1", name: "Ana" }, null]);
+    expect(page.data.map((listed) => listed.createdVia)).toEqual(["api", null]);
+    expect(page.data.map((listed) => listed.webUrl)).toEqual([
+      "https://studio.example.com/library/a1",
+      null,
+    ]);
+  });
+
+  it("filters assets by who made them", async () => {
+    const { fetch, calls } = fakeFetch(json({ data: [], nextCursor: null }));
+    await client(fetch).assets.search({ createdBy: ["u1", "u2"] });
+    expect(calls[0]?.url).toBe(`${BASE}/assets?createdBy=u1&createdBy=u2`);
+  });
+});
+
 describe("asset previews", () => {
   const preview: AssetPreview = {
     image96Url: "https://storage.example.com/a1-96.webp?X-Amz-Signature=s96",
@@ -194,28 +283,10 @@ describe("asset previews", () => {
     videoUrl: null,
     expiresAt: "2026-10-27T00:05:00.000Z",
   };
-  const asset = (id: string, assetPreview: AssetPreview | null): Asset => ({
-    id,
-    projectId: "p1",
-    name: "Lighthouse",
-    type: "image",
-    origin: "generated",
-    mimeType: "image/png",
-    sizeBytes: 5,
-    width: 1024,
-    height: 1024,
-    durationMs: null,
-    favorite: false,
-    labels: [],
-    runId: "r1",
-    outputIndex: 0,
-    createdAt: "2026-10-27T00:00:00.000Z",
-    preview: assetPreview,
-  });
 
   it("reads each listed asset's preview, or null before it's made", async () => {
     const { fetch } = fakeFetch(
-      json({ data: [asset("a1", preview), asset("a2", null)], nextCursor: null }),
+      json({ data: [asset("a1", { preview }), asset("a2")], nextCursor: null }),
     );
     const previews: (AssetPreview | null)[] = [];
     for await (const listed of client(fetch).assets.search({ projectId: "p1" }))
@@ -225,7 +296,7 @@ describe("asset previews", () => {
 
   it("reads one asset's preview", async () => {
     const detail: AssetDetail = {
-      ...asset("a1", preview),
+      ...asset("a1", { preview }),
       prompt: "A lighthouse at dawn",
       promptTruncated: false,
     };

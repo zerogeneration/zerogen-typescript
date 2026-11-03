@@ -38,8 +38,9 @@ export interface RequestOptions {
   /** Overrides the client's `maxRetries` for this request. */
   maxRetries?: number;
   /**
-   * `POST` only. Each call sends a new random key by default and reuses it on
-   * that call's retries; pass your own to make a retry across calls safe.
+   * `POST` and `DELETE` only. Each call sends a new random key by default and
+   * reuses it on that call's retries; pass your own to make a retry across
+   * calls safe.
    */
   idempotencyKey?: string;
   /** Headers to send with this request. */
@@ -48,7 +49,7 @@ export interface RequestOptions {
 
 /** @internal */
 export interface ApiCall {
-  method: "GET" | "POST" | "PATCH" | "PUT";
+  method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   path: string;
   /** An array repeats the parameter once per value. */
   query?: Record<string, string | number | boolean | readonly string[] | undefined>;
@@ -125,7 +126,7 @@ export class ZeroGen {
       Authorization: `Bearer ${this.#apiKey}`,
     };
     if (call.body !== undefined) headers["Content-Type"] = "application/json";
-    if (call.method === "POST")
+    if (call.method === "POST" || call.method === "DELETE")
       headers["Idempotency-Key"] = options.idempotencyKey ?? crypto.randomUUID();
     if (call.wait !== undefined) headers.Prefer = `wait=${call.wait}`;
     const response = await this.send(

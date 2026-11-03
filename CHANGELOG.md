@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.3.0
 
-This release needs the API that reuses folders by name.
+This release follows the current `/v1`. Code written for 0.2.1 keeps working.
 
 - `folders.ensurePath` returns the folder at a path such as `"SH010/anim"`,
   creating each folder on the way that isn't there yet. It reuses a folder of
@@ -10,7 +10,17 @@ This release needs the API that reuses folders by name.
   share its folders. Pass an array of names when a name contains `/`.
 - `folders.create` takes `reuseExisting`: with `true`, a folder of that name
   already under the parent is returned instead of a second one.
-- `CreateRunRequest` has `seed`, for models that accept one.
+- `folders.delete` deletes a folder and its subfolders, keeping their assets or
+  trashing them, and `folders.restore` undoes it within an hour. Deleting needs
+  the `library:delete` scope.
+- `CreateRunRequest` has `seed`, for models that accept one; `labelIds`, which
+  label each output as it lands and need the `library:organize` scope; and
+  `upscaleDraft`, which upscales an output of a Seedance 2.5 480p Draft to its
+  final.
+- Assets and runs have `createdBy`, `createdVia` and `webUrl`, and
+  `assets.search` filters by `createdBy`.
+- `DELETE` requests send an `Idempotency-Key` that their retries reuse, as
+  `POST` requests do.
 
 ## 0.2.1
 

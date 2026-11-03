@@ -5,8 +5,12 @@ import type {
   Folder,
   FolderAssetsChange,
   FolderAssetsRequest,
+  FolderDelete,
+  FolderDeleteQuery,
   FolderListQuery,
+  FolderRestore,
   MoveAssetsRequest,
+  RestoreFolderRequest,
   UpdateFolderRequest,
 } from "../types.js";
 
@@ -91,6 +95,42 @@ export class Folders {
   ): Promise<Folder> {
     return this.#client.request(
       { method: "PATCH", path: path(projectId, folderId), body },
+      options,
+    );
+  }
+
+  /**
+   * Deletes a folder and its subfolders. With `assets: "keep"` their assets stay
+   * in the Library; with `assets: "trash"` they go to Recently deleted, including
+   * from their other folders. The response's `eventId` undoes it with `restore`
+   * until `undoUntil`, an hour later. It needs the `library:delete` scope, which
+   * has to be granted explicitly, and only admins can delete a LucidLink-linked
+   * folder. A test key can't delete folders.
+   */
+  delete(
+    projectId: string,
+    folderId: string,
+    query: FolderDeleteQuery,
+    options?: RequestOptions,
+  ): Promise<FolderDelete> {
+    return this.#client.request(
+      { method: "DELETE", path: path(projectId, folderId), query },
+      options,
+    );
+  }
+
+  /**
+   * Undoes your own folder deletion by its `eventId`, within an hour, restoring
+   * its folders, their placements, and the assets it trashed. It needs the
+   * `library:organize` scope. A test key can't restore folders.
+   */
+  restore(
+    projectId: string,
+    body: RestoreFolderRequest,
+    options?: RequestOptions,
+  ): Promise<FolderRestore> {
+    return this.#client.request(
+      { method: "POST", path: `${path(projectId)}/restore`, body },
       options,
     );
   }

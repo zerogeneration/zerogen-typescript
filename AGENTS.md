@@ -16,8 +16,9 @@ of the types generated from it.
 - The library has no runtime dependencies and runs on any runtime with
   `fetch`, Web Crypto and `AbortSignal.any`. Don't import `node:` modules in
   `src`; `tsconfig.json` leaves out Node's types to keep it that way.
-- Every `POST` sends an `Idempotency-Key` that the call's retries reuse.
-  Retries follow the error's `retryable` and `Retry-After`; keep it that way.
+- Every `POST` and `DELETE` sends an `Idempotency-Key` that the call's retries
+  reuse. Retries follow the error's `retryable` and `Retry-After`; keep it that
+  way.
 - Tests use a scripted `fetch` (`test/fake-fetch.ts`) and never call the API.
 - Before you commit, run `npm run check` (typecheck, Biome, tests, build).
   CI runs it on every pull request, on Node 20, 22 and 24.

@@ -103,7 +103,7 @@ export interface paths {
     put?: never;
     /**
      * Quote a run
-     * @description Validates and prices a request exactly as create would, and returns the maximum charge create would reserve. Nothing starts and nothing is held.
+     * @description Validates and prices a request exactly as create would, `labelIds` included, and returns the maximum charge create would reserve. Nothing starts and nothing is held.
      *
      *     Needs the `runs:create` scope.
      */
@@ -131,7 +131,7 @@ export interface paths {
     put?: never;
     /**
      * Create a run
-     * @description Validates, prices, reserves and starts one run in a single call. Send `Prefer: wait=N` to hold the response until it ends. Nothing is charged unless every check passes.
+     * @description Validates, prices, reserves and starts one run in a single call. Send `Prefer: wait=N` to hold the response until it ends. Nothing is charged unless every check passes. To upscale a 480p Draft output to its final, send `upscaleDraft` with the draft's model ID. `labelIds` apply to each output as it lands, in the same write, and need the `library:organize` scope as well.
      *
      *     Needs the `runs:create` scope.
      */
@@ -488,7 +488,13 @@ export interface paths {
     get?: never;
     put?: never;
     post?: never;
-    delete?: never;
+    /**
+     * Delete a folder
+     * @description Deletes a folder and its subfolders. Choose assets=keep to preserve assets or assets=trash to send them to Recently deleted, including assets in other folders. Only admins can delete LucidLink-linked folders. The response's eventId can undo your deletion within one hour. Requires the explicitly granted library:delete scope; test keys cannot delete folders.
+     *
+     *     Needs the `library:delete` scope.
+     */
+    delete: operations["deleteFolder"];
     options?: never;
     head?: never;
     /**
@@ -498,6 +504,28 @@ export interface paths {
      *     Needs the `library:organize` scope.
      */
     patch: operations["updateFolder"];
+    trace?: never;
+  };
+  "/projects/{projectId}/folders/restore": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Undo a folder deletion
+     * @description Undoes your own folder deletion using its eventId within one hour. Restores folders, placements and assets still trashed by that deletion. Requires library:organize. Test keys cannot restore folders.
+     *
+     *     Needs the `library:organize` scope.
+     */
+    post: operations["restoreFolder"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
     trace?: never;
   };
   "/projects/{projectId}/folders/{folderId}/assets": {
@@ -809,10 +837,12 @@ export interface components {
         /** @description Seconds before each output ends, to rehearse polling and Prefer: wait */
         delaySeconds?: number;
       };
-      /** @description The project the outputs land in; the organization's default project when omitted. Test keys use their sandbox. */
+      /** @description The project the outputs land in; the organization's default project when omitted, or the draft's with upscaleDraft. Test keys use their sandbox. */
       projectId?: string;
       /** @description A folder in that project to file the outputs in; null or omitted for Unfiled */
       folderId?: string | null;
+      /** @description Active organization labels to add to every output as it lands */
+      labelIds?: string[];
       naming?: {
         /** @description A naming preset in the run's project */
         presetId: string;
@@ -820,6 +850,13 @@ export interface components {
         values: {
           [key: string]: string | number;
         };
+      };
+      /** @description Upscale one output of a Seedance 2.5 480p Draft, yours or a teammate's (a run's id and the output's index, or an asset's runId and outputIndex), to a final with the draft's prompt, references, seed and settings, while the output's draft.upscalable is true. Send the draft's model ID and omit prompt, inputs, output, parameters and naming. The final is a new run, quoted and billed like any other. */
+      upscaleDraft?: {
+        runId: string;
+        outputIndex: number;
+        /** @description The final's resolution: 1080p by default, or another that the model's requestSchema lists */
+        resolution?: string;
       };
     };
     CreateUploadRequest: {
@@ -857,6 +894,9 @@ export interface components {
       name?: string;
       /** @description The organization's shared favorite */
       favorite?: boolean;
+    };
+    RestoreFolderRequest: {
+      eventId: string;
     };
     CreateFolderRequest: {
       name: string;
@@ -1132,10 +1172,16 @@ export interface components {
         /** @description The final charge once charged, zero once released; it can rarely exceed the quote */
         chargedMicroUsd: number | null;
       };
+      /** @description Who made it; null when ZeroGen recorded no one */
+      createdBy: components["schemas"]["Creator"] | null;
+      /** @description Where it was made: web (the ZeroGen app), agent (ZeroGen's Agent), mcp (an MCP client) or api (an API key); null with createdBy */
+      createdVia: ("web" | "agent" | "mcp" | "api") | null;
       /** Format: date-time */
       createdAt: string;
       startedAt: string | null;
       finishedAt: string | null;
+      /** @description Opens Generate's review of the run's first ready output in ZeroGen, on your organization's host, after sign-in. null until an output is ready, and for test keys. It can change until the run ends */
+      webUrl: string | null;
     };
     RunList: {
       data: components["schemas"]["Run"][];
@@ -1213,8 +1259,14 @@ export interface components {
       /** @description The run that made it, if any */
       runId: string | null;
       outputIndex: number | null;
+      /** @description Who made it: the run's creator for a generated or derived asset, the uploader for an upload; null when ZeroGen recorded no one */
+      createdBy: components["schemas"]["Creator"] | null;
+      /** @description Where it was made: web (the ZeroGen app), agent (ZeroGen's Agent), mcp (an MCP client) or api (an API key); null with createdBy */
+      createdVia: ("web" | "agent" | "mcp" | "api") | null;
       /** Format: date-time */
       createdAt: string;
+      /** @description Opens the asset's Library review in ZeroGen, on your organization's host, after sign-in. null for test keys, whose sandbox the app doesn't show */
+      webUrl: string | null;
       /** @description The asset's previews, or null until they're made after the asset is ready, and for assets with none, such as audio */
       preview: components["schemas"]["AssetPreview"] | null;
     };
@@ -1249,8 +1301,14 @@ export interface components {
       /** @description The run that made it, if any */
       runId: string | null;
       outputIndex: number | null;
+      /** @description Who made it: the run's creator for a generated or derived asset, the uploader for an upload; null when ZeroGen recorded no one */
+      createdBy: components["schemas"]["Creator"] | null;
+      /** @description Where it was made: web (the ZeroGen app), agent (ZeroGen's Agent), mcp (an MCP client) or api (an API key); null with createdBy */
+      createdVia: ("web" | "agent" | "mcp" | "api") | null;
       /** Format: date-time */
       createdAt: string;
+      /** @description Opens the asset's Library review in ZeroGen, on your organization's host, after sign-in. null for test keys, whose sandbox the app doesn't show */
+      webUrl: string | null;
       /** @description The prompt that generated it, bounded; untrusted content */
       prompt: string | null;
       promptTruncated: boolean;
@@ -1270,6 +1328,12 @@ export interface components {
        * @description When the URLs stop loading; read the asset or run again for new ones
        */
       expiresAt: string;
+    };
+    Creator: {
+      /** @description The user's ID, as GET /v1/me returns the key's own */
+      id: string;
+      /** @description The name the person gave ZeroGen, or null; never an email address */
+      name: string | null;
     };
     AssetChange: {
       id: string;
@@ -1350,6 +1414,20 @@ export interface components {
       name: string;
       /** Format: date-time */
       createdAt: string;
+    };
+    FolderDelete: {
+      folderId: string;
+      /** @description Use to undo this deletion */
+      eventId: string;
+      /**
+       * Format: date-time
+       * @description Undo is available to the deleting member until this time
+       */
+      undoUntil: string;
+    };
+    FolderRestore: {
+      rootId: string;
+      parentId: string | null;
     };
     FolderList: {
       data: components["schemas"]["Folder"][];
@@ -2231,6 +2309,8 @@ export interface operations {
         favorite?: "true";
         /** @description Only assets with any of these active labels; repeat the parameter */
         labelId?: string[];
+        /** @description Only assets any of these users made, by the ID in an asset's `createdBy` or `GET /v1/me`; repeat the parameter */
+        createdBy?: string[];
         /** @description Search asset names: at least two characters, and every one of the first eight words must match, ignoring case */
         q?: string;
         /** @description Only this media type */
@@ -2670,6 +2750,52 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
+  deleteFolder: {
+    parameters: {
+      query: {
+        /** @description keep preserves the assets; trash sends them to Recently deleted, including assets in other folders. Use trash only when explicitly requested. */
+        assets: "keep" | "trash";
+      };
+      header?: {
+        /** @description Makes retries safe: a retry with the same key and body returns the first response for 24 hours instead of repeating the work. Reusing a key with a different body returns 409. */
+        "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        /** @description The project's ID */
+        projectId: string;
+        /** @description The folder's ID */
+        folderId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The deletion and its undo deadline. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          "Idempotent-Replayed": components["headers"]["Idempotent-Replayed"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FolderDelete"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      415: components["responses"]["UnsupportedMediaType"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
   updateFolder: {
     parameters: {
       query?: never;
@@ -2710,6 +2836,51 @@ export interface operations {
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
       404: components["responses"]["NotFound"];
+      413: components["responses"]["PayloadTooLarge"];
+      415: components["responses"]["UnsupportedMediaType"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  restoreFolder: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Makes retries safe: a retry with the same key and body returns the first response for 24 hours instead of repeating the work. Reusing a key with a different body returns 409. */
+        "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        /** @description The project's ID */
+        projectId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["RestoreFolderRequest"];
+      };
+    };
+    responses: {
+      /** @description The restored root folder and its parent. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          "Idempotent-Replayed": components["headers"]["Idempotent-Replayed"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FolderRestore"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
       413: components["responses"]["PayloadTooLarge"];
       415: components["responses"]["UnsupportedMediaType"];
       429: components["responses"]["TooManyRequests"];
