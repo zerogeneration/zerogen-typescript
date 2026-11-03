@@ -114,6 +114,32 @@ media type from the file, or from the filename's extension. For files up to
 64 MiB, it sends the file's SHA-256 digest, so a file the project already has
 is reused instead of uploaded again.
 
+## Labels, seeds and Draft finals
+
+`runs.create`, `createAndWait` and `quote` also take:
+
+- `labelIds`, which adds your organization's labels to each output as it lands.
+  It needs the `library:organize` scope as well.
+- `seed`, for models whose schema lists it. The same seed with the same request
+  reproduces a result as closely as the model allows.
+- `upscaleDraft`, which upscales one output of a Seedance 2.5 480p Draft to its
+  final. Send the draft's model ID, and leave out `prompt`, `inputs`, `output`,
+  `parameters` and `naming`.
+
+```ts
+const output = draft.outputs[0];
+
+if (output?.draft?.upscalable) {
+  const final = await zerogen.runs.createAndWait({
+    model: draftModelId,
+    upscaleDraft: { runId: draft.id, outputIndex: output.index },
+  });
+}
+```
+
+The final is a new run, quoted and billed like any other. It's 1080p unless you
+send another `resolution` that the model's schema lists.
+
 ## The Library
 
 Reading the Library needs the `library:read` scope, and organizing it needs
@@ -132,14 +158,14 @@ await zerogen.assets.update(projectId, assetId, { favorite: true });
 `projects.list` returns the organization's projects, and each run and asset
 names its `projectId`.
 
-| Resource        | Methods                                                                             |
-| --------------- | ----------------------------------------------------------------------------------- |
-| `projects`      | `list`                                                                              |
-| `assets`        | `search`, `get`, `lineage`, `folders`, `getDownload`, `download`, `update`          |
-| `folders`       | `list`, `create`, `ensurePath`, `update`, `addAssets`, `moveAssets`, `removeAssets` |
-| `labels`        | `list`, `create`, `update`, `archive`, `restore`, `addAssets`, `removeAssets`       |
-| `namingPresets` | `list`                                                                              |
-| `skills`        | `list`, `get`                                                                       |
+| Resource        | Methods                                                                                                  |
+| --------------- | -------------------------------------------------------------------------------------------------------- |
+| `projects`      | `list`                                                                                                   |
+| `assets`        | `search`, `get`, `lineage`, `folders`, `getDownload`, `download`, `update`                               |
+| `folders`       | `list`, `create`, `ensurePath`, `update`, `delete`, `restore`, `addAssets`, `moveAssets`, `removeAssets` |
+| `labels`        | `list`, `create`, `update`, `archive`, `restore`, `addAssets`, `removeAssets`                            |
+| `namingPresets` | `list`                                                                                                   |
+| `skills`        | `list`, `get`                                                                                            |
 
 Methods take an asset's or folder's project as their first argument when the
 route names it. Asset names, prompts, folder names and skills come from your
@@ -156,6 +182,37 @@ const anim = await zerogen.folders.ensurePath(projectId, "SH010/anim");
 
 A string path splits on `/`. Folder names can contain `/`, so pass an array,
 such as `["2026/11", "renders"]`, when one does.
+
+To delete a folder and its subfolders, use `folders.delete`, and choose what
+happens to their assets. `keep` leaves them in the Library. `trash` sends them
+to Recently deleted, including from their other folders. The response's
+`eventId` undoes the deletion with `folders.restore` until `undoUntil`, an hour
+later:
+
+```ts
+const { eventId } = await zerogen.folders.delete(projectId, folderId, { assets: "keep" });
+await zerogen.folders.restore(projectId, { eventId });
+```
+
+Deleting needs the `library:delete` scope, which has to be granted explicitly.
+Restoring needs `library:organize`, and only the user who deleted the folder
+can restore it. Test keys can do neither.
+
+Each asset and run names who made it in `createdBy`, with their `id` and
+`name`, and where in `createdVia`: `web`, `agent`, `mcp` or `api`. Both are null
+when ZeroGen recorded no one. To find what someone made, pass their ID to
+`assets.search`:
+
+```ts
+const { user } = await zerogen.me();
+
+for await (const asset of zerogen.assets.search({ createdBy: [user.id] })) {
+  console.log(asset.name, asset.webUrl);
+}
+```
+
+`webUrl` opens an asset or run in ZeroGen, after sign-in. It's null for test
+keys, and for a run until an output is ready.
 
 ## Lists
 
@@ -199,9 +256,9 @@ The client retries connection errors and errors the API marks `retryable`,
 twice by default, with backoff. For `429` responses, it waits for
 `Retry-After`, unless that's more than a minute.
 
-Every `POST` sends an `Idempotency-Key`, and a call's retries reuse it, so a
-retried create never starts a second run. To retry safely across calls or
-processes, pass your own key:
+Every `POST` and `DELETE` sends an `Idempotency-Key`, and a call's retries
+reuse it, so a retried create never starts a second run. To retry safely across
+calls or processes, pass your own key:
 
 ```ts
 await zerogen.runs.create(request, { idempotencyKey: job.id });
