@@ -4,6 +4,16 @@
 
 This release follows the current `/v1`. Code written for 0.2.1 keeps working.
 
+- Declared provenance for files made outside ZeroGen.
+  `uploads.upload(file, { declaration, naming })` sends the tool, `sources`,
+  `prompt`, `workflow`, `externalRef` and `occurredAt`. ZeroGen records them,
+  unverified and free, as the run that made the asset. If the project already
+  has an identical file, `upload` declares it instead when it can, and
+  `declarationRecorded` says whether it did.
+- `assets.declare(assetId, body)` declares a file you uploaded earlier.
+- `assets.get(assetId, { includeWorkflow: true })` reads a declared workflow.
+- Types for `declared` on assets, `runId` on uploads, and `declared` on
+  lineage edges.
 - `folders.ensurePath` returns the folder at a path such as `"SH010/anim"`,
   creating each folder on the way that isn't there yet. It reuses a folder of
   the same name under the same parent, so clients saving into one path at once

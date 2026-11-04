@@ -6,6 +6,7 @@ import ZeroGen, {
   type Creator,
   type FolderDelete,
   type FolderRestore,
+  type Lineage,
   type RequestOptions,
   ZeroGenError,
 } from "../src/index.js";
@@ -22,6 +23,17 @@ describe("Library", () => {
     const cases: [string, (z: ZeroGen) => PromiseLike<unknown>, string, unknown?][] = [
       ["GET /projects", (z) => z.projects.list(), "/projects"],
       ["GET /assets/a1", (z) => z.assets.get("a1"), "/assets/a1"],
+      [
+        "GET /assets/a1?includeWorkflow=true",
+        (z) => z.assets.get("a1", { includeWorkflow: true }),
+        "/assets/a1?includeWorkflow=true",
+      ],
+      [
+        "POST /assets/a1/declaration",
+        (z) => z.assets.declare("a1", { tool: { name: "ffmpeg" } }),
+        "/assets/a1/declaration",
+        { tool: { name: "ffmpeg" } },
+      ],
       ["GET /assets/a1/lineage", (z) => z.assets.lineage("a1"), "/assets/a1/lineage"],
       ["GET /assets/a1/folders", (z) => z.assets.folders("a1"), "/assets/a1/folders"],
       ["GET /assets/a1/download", (z) => z.assets.getDownload("a1"), "/assets/a1/download"],
@@ -245,6 +257,7 @@ const asset = (id: string, fields: Partial<Asset> = {}): Asset => ({
   outputIndex: 0,
   createdBy: { id: "u1", name: "Ana" },
   createdVia: "api",
+  declared: null,
   createdAt: "2026-10-27T00:00:00.000Z",
   webUrl: "https://studio.example.com/library/a1",
   preview: null,
@@ -303,6 +316,71 @@ describe("asset previews", () => {
     const { fetch } = fakeFetch(json(detail));
     const read = await client(fetch).assets.get("a1");
     expect(read.preview?.image512Url).toBe(preview.image512Url);
+  });
+});
+
+describe("declared provenance", () => {
+  const declared: NonNullable<Asset["declared"]> = {
+    tool: {
+      name: "comfyui",
+      version: "0.3.40",
+      integration: { name: "zerogen-nodes", version: "0.1.0" },
+      models: ["flux1-dev.safetensors"],
+    },
+    externalRef: { system: "comfyui", id: "prompt-1" },
+    occurredAt: "2026-11-01T00:00:00.000Z",
+  };
+  const workflow = { nodes: [{ id: 1, type: "KSampler" }] };
+
+  it("reads what was declared about each asset, or null", async () => {
+    const { fetch } = fakeFetch(
+      json({
+        data: [asset("a1", { origin: "upload", declared }), asset("a2")],
+        nextCursor: null,
+      }),
+    );
+    const page = await client(fetch).assets.search();
+    expect(page.data.map((listed) => listed.declared?.tool.name ?? null)).toEqual([
+      "comfyui",
+      null,
+    ]);
+  });
+
+  it("reads a declared workflow only when asked", async () => {
+    const detail: AssetDetail = {
+      ...asset("a1", { origin: "upload", declared }),
+      prompt: "A lighthouse at dawn",
+      promptTruncated: false,
+      workflow,
+    };
+    const { fetch, calls } = fakeFetch(json(detail));
+    const read = await client(fetch).assets.get("a1", {
+      includeWorkflow: true,
+      headers: { "X-Trace": "t1" },
+    });
+    expect(read.workflow).toEqual(workflow);
+    expect(read.declared?.externalRef).toEqual({ system: "comfyui", id: "prompt-1" });
+    expect(calls[0]).toMatchObject({
+      url: `${BASE}/assets/a1?includeWorkflow=true`,
+      headers: { "x-trace": "t1" },
+    });
+  });
+
+  it("marks declared lineage edges", async () => {
+    const edges: Lineage["edges"] = [
+      { assetId: "a1", sourceAssetId: "a0", role: "source", kind: null, declared: true },
+    ];
+    const { fetch } = fakeFetch(
+      json({
+        asset: null,
+        sources: [],
+        uses: [],
+        edges,
+        truncated: { sources: false, uses: false },
+      }),
+    );
+    const lineage = await client(fetch).assets.lineage("a1");
+    expect(lineage.edges[0]?.declared).toBe(true);
   });
 });
 

@@ -1,5 +1,6 @@
 import type { RequestOptions, ZeroGen } from "../client.js";
-import type { CreateUploadRequest, Upload } from "../types.js";
+import { ZeroGenError } from "../errors.js";
+import type { CreateUploadRequest, DeclareUploadRequest, Upload } from "../types.js";
 
 type ContentType = CreateUploadRequest["contentType"];
 
@@ -34,7 +35,19 @@ const CONTENT_TYPES: Record<string, ContentType> = {
 export type UploadSource = Blob | ArrayBuffer | Uint8Array;
 
 /** An upload whose Library asset is ready to use as a run input. */
-export type ReadyUpload = Upload & { status: "ready"; assetId: string };
+export type ReadyUpload = Upload & {
+  status: "ready";
+  assetId: string;
+  /**
+   * Whether ZeroGen recorded the `declaration`. It's false without one, and
+   * when the project already had an identical file that can't take it: one
+   * with a declaration, one a run made, one someone else uploaded, or one the
+   * declaration's `sources` include or were made from. That asset keeps its
+   * own lineage. When the identical file takes it, `runId` stays null, and
+   * the run is the asset's `runId`.
+   */
+  declarationRecorded: boolean;
+};
 
 export interface UploadFileOptions extends Omit<RequestOptions, "idempotencyKey"> {
   /** Defaults to the name of a `File`. */
@@ -50,6 +63,15 @@ export interface UploadFileOptions extends Omit<RequestOptions, "idempotencyKey"
    * file already in the project. Computed for files up to 64 MiB when omitted.
    */
   sha256?: string;
+  /**
+   * How the file was made outside ZeroGen, recorded as the asset's run
+   * without verification: the `tool`, and optionally its `sources`, `prompt`,
+   * `workflow`, `externalRef` and `occurredAt`. Declaring `sources` also
+   * needs the `library:read` scope.
+   */
+  declaration?: DeclareUploadRequest;
+  /** A naming preset and its values to name the asset by. Needs a `declaration`. */
+  naming?: CreateUploadRequest["naming"];
 }
 
 export class Uploads {
@@ -62,10 +84,20 @@ export class Uploads {
   /**
    * Uploads a file into the Library and resolves when it's ready to use as a
    * run input, with its `assetId`. In Node.js, read a file with
-   * `fs.openAsBlob(path)`.
+   * `fs.openAsBlob(path)`. With a `declaration`, an identical file already in
+   * the project is declared instead, if it can be: check `declarationRecorded`.
    */
   async upload(file: UploadSource, options: UploadFileOptions = {}): Promise<ReadyUpload> {
-    const { filename: name, contentType: type, projectId, folderId, sha256, ...rest } = options;
+    const {
+      filename: name,
+      contentType: type,
+      projectId,
+      folderId,
+      sha256,
+      declaration,
+      naming,
+      ...rest
+    } = options;
     const blob = file instanceof Blob ? file : new Blob([file as BlobPart]);
     const filename =
       name ?? ("name" in blob && typeof blob.name === "string" ? blob.name : undefined);
@@ -81,6 +113,8 @@ export class Uploads {
         sha256: sha256 ?? (blob.size <= DIGEST_MAX_BYTES ? await digest(blob) : undefined),
         projectId,
         folderId,
+        ...declaration,
+        naming,
       },
       rest,
     );
@@ -95,7 +129,16 @@ export class Uploads {
     }
     if (upload.status !== "ready" || upload.assetId === null)
       throw new Error(`Upload ${upload.id} isn't ready.`);
-    return { ...upload, status: upload.status, assetId: upload.assetId };
+    const ready = { ...upload, status: upload.status, assetId: upload.assetId };
+    if (!declaration || ready.runId) return { ...ready, declarationRecorded: Boolean(declaration) };
+    // No run means the project had an identical file, and the declaration went unrecorded.
+    try {
+      await this.#client.assets.declare(ready.assetId, declaration, rest);
+      return { ...ready, declarationRecorded: true };
+    } catch (error) {
+      if (undeclarable(error)) return { ...ready, declarationRecorded: false };
+      throw error;
+    }
   }
 
   /** Starts an upload. `PUT` the file's bytes to the returned target, then complete it. */
@@ -118,6 +161,17 @@ export class Uploads {
       options,
     );
   }
+}
+
+/** Whether declaring failed because the identical file can't take the declaration. */
+function undeclarable(error: unknown): boolean {
+  if (!(error instanceof ZeroGenError)) return false;
+  return (
+    error.code === "invalid_state" ||
+    error.code === "permission_denied" ||
+    // A source is the asset itself or made from it, as when a graph saves its input unchanged.
+    (error.code === "validation_failed" && error.param === "sources")
+  );
 }
 
 function extension(filename: string): string {

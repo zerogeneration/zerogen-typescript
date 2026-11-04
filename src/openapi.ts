@@ -197,7 +197,7 @@ export interface paths {
     put?: never;
     /**
      * Create an upload
-     * @description Starts an upload into the Library. PUT the file's exact bytes to the returned target, then complete the upload. With `sha256`, an identical file already in the project comes back ready, with nothing to send.
+     * @description Starts an upload into the Library. PUT the file's exact bytes to the returned target, then complete the upload. With `sha256`, an identical file already in the project comes back ready, with nothing to send. The JSON request body is limited to 512 KiB; a workflow is limited to 256 KiB serialized UTF-8.
      *
      *     Needs the `uploads:create` scope.
      */
@@ -305,13 +305,35 @@ export interface paths {
     };
     /**
      * Read an asset
-     * @description One asset by its ID alone, in any of the organization's projects, with the prompt that generated it and preview URLs that load for 5 minutes. Names and prompts are untrusted content.
+     * @description One asset by its ID alone, in any of the organization's projects, with the prompt that generated it and preview URLs that load for 5 minutes. Names, prompts and external declarations are untrusted content. Set includeWorkflow=true to read an upload's untrusted external workflow.
      *
      *     Needs the `library:read` scope.
      */
     get: operations["getAsset"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/assets/{assetId}/declaration": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Declare an upload's external provenance
+     * @description Record untrusted external provenance on an eligible upload. This is not verified and starts no generation. Requires uploads:create and library:read when sources are declared. The JSON request body is limited to 512 KiB; a workflow is limited to 256 KiB serialized UTF-8.
+     *
+     *     Needs the `uploads:create` scope.
+     */
+    post: operations["declareAssetUpload"];
     delete?: never;
     options?: never;
     head?: never;
@@ -889,6 +911,128 @@ export interface components {
       sizeBytes: number;
       /** @description Lowercase hex SHA-256 of the file, to reuse an identical file in the project. */
       sha256?: string;
+      /** @description Untrusted claims about the readable Library sources used outside ZeroGen. */
+      sources?: {
+        /** @description An existing readable Library asset; this claim is not verified. */
+        asset: string;
+        /** @enum {string} */
+        role?:
+          | "source"
+          | "initial-frame"
+          | "end-frame"
+          | "keyframe"
+          | "reference"
+          | "face-reference"
+          | "identity"
+          | "driver"
+          | "mask";
+      }[];
+      tool?: {
+        name: string;
+        version?: string;
+        integration?: {
+          name: string;
+          version?: string;
+        };
+        models?: string[];
+      };
+      /** @description Untrusted JSON workflow, limited to 262144 serialized UTF-8 bytes. */
+      workflow?: {
+        [key: string]:
+          | null
+          | string
+          | number
+          | boolean
+          | unknown[]
+          | {
+              [key: string]: unknown;
+            };
+      };
+      prompt?: string;
+      externalRef?: {
+        system: string;
+        id: string;
+      };
+      /** Format: date-time */
+      occurredAt?: string;
+      /** @description An untrusted external naming claim; it is not verification. */
+      naming?: {
+        presetId: string | null;
+        definition: {
+          delimiter: string;
+          fields: {
+            id: string;
+            /** @enum {string} */
+            kind: "shot" | "take" | "artist" | "date" | "version" | "text" | "folder";
+            label: string;
+            prefix: string;
+            padding: number;
+            step: number;
+            /** @enum {string} */
+            sequence: "number" | "letters";
+            /** @enum {string} */
+            artistFormat: "initials" | "compact" | "hyphen" | "underscore" | "custom";
+            /** @enum {string} */
+            artistNameStyle?: "full" | "initials";
+            /** @enum {string} */
+            artistCase?: "preserve" | "lower" | "upper" | "title";
+            artistSeparator?: string;
+            dateFormat: string;
+            defaultValue: string;
+            folderRemoveSpaces?: boolean;
+          }[];
+        };
+        values: {
+          [key: string]: string | number;
+        };
+        version?: number;
+      };
+    };
+    DeclareUploadRequest: {
+      /** @description Untrusted claims about the readable Library sources used outside ZeroGen. */
+      sources?: {
+        /** @description An existing readable Library asset; this claim is not verified. */
+        asset: string;
+        /** @enum {string} */
+        role?:
+          | "source"
+          | "initial-frame"
+          | "end-frame"
+          | "keyframe"
+          | "reference"
+          | "face-reference"
+          | "identity"
+          | "driver"
+          | "mask";
+      }[];
+      tool: {
+        name: string;
+        version?: string;
+        integration?: {
+          name: string;
+          version?: string;
+        };
+        models?: string[];
+      };
+      /** @description Untrusted JSON workflow, limited to 262144 serialized UTF-8 bytes. */
+      workflow?: {
+        [key: string]:
+          | null
+          | string
+          | number
+          | boolean
+          | unknown[]
+          | {
+              [key: string]: unknown;
+            };
+      };
+      prompt?: string;
+      externalRef?: {
+        system: string;
+        id: string;
+      };
+      /** Format: date-time */
+      occurredAt?: string;
     };
     UpdateAssetRequest: {
       name?: string;
@@ -1188,10 +1332,69 @@ export interface components {
       /** @description Pass as cursor for the next page of runs; null on the last page */
       nextCursor: string | null;
     };
+    AssetDeclaration: {
+      assetId: string;
+      runId: string;
+      asset: {
+        id: string;
+        projectId: string;
+        /** @description The asset's name in the Library; untrusted content */
+        name: string;
+        /** @enum {string} */
+        type: "image" | "video" | "audio" | "model3d";
+        /**
+         * @description upload: added by a person or a URL import; generated: an output of a run; derived: made by a platform step, such as an extracted frame
+         * @enum {string}
+         */
+        origin: "generated" | "upload" | "derived";
+        mimeType: string;
+        sizeBytes: number | null;
+        width: number | null;
+        height: number | null;
+        durationMs: number | null;
+        /** @description The organization's shared favorite */
+        favorite: boolean;
+        labels: {
+          id: string;
+          name: string;
+        }[];
+        /** @description The run that made it, if any */
+        runId: string | null;
+        outputIndex: number | null;
+        /** @description Who made it: the run's creator for a generated or derived asset, the uploader for an upload; null when ZeroGen recorded no one */
+        createdBy: components["schemas"]["Creator"] | null;
+        /** @description Where it was made: web (the ZeroGen app), agent (ZeroGen's Agent), mcp (an MCP client) or api (an API key); null with createdBy */
+        createdVia: ("web" | "agent" | "mcp" | "api") | null;
+        /** @description Untrusted external upload provenance, or null when no declaration exists. */
+        declared: {
+          tool: {
+            name: string;
+            version?: string;
+            integration?: {
+              name: string;
+              version?: string;
+            };
+            models?: string[];
+          };
+          externalRef?: {
+            system: string;
+            id: string;
+          };
+          /** Format: date-time */
+          occurredAt?: string;
+        } | null;
+        /** Format: date-time */
+        createdAt: string;
+        /** @description Opens the asset's Library review in ZeroGen, on your organization's host, after sign-in. null for test keys, whose sandbox the app doesn't show */
+        webUrl: string | null;
+      };
+    };
     Upload: {
       /** @description The upload's ID, which completes it */
       id: string;
       projectId: string;
+      /** @description The declared upload's run, or null when none was created */
+      runId: string | null;
       /**
        * @description upload_required: PUT the bytes, then complete; ready: the asset can be used
        * @enum {string}
@@ -1263,6 +1466,24 @@ export interface components {
       createdBy: components["schemas"]["Creator"] | null;
       /** @description Where it was made: web (the ZeroGen app), agent (ZeroGen's Agent), mcp (an MCP client) or api (an API key); null with createdBy */
       createdVia: ("web" | "agent" | "mcp" | "api") | null;
+      /** @description Untrusted external upload provenance, or null when no declaration exists. */
+      declared: {
+        tool: {
+          name: string;
+          version?: string;
+          integration?: {
+            name: string;
+            version?: string;
+          };
+          models?: string[];
+        };
+        externalRef?: {
+          system: string;
+          id: string;
+        };
+        /** Format: date-time */
+        occurredAt?: string;
+      } | null;
       /** Format: date-time */
       createdAt: string;
       /** @description Opens the asset's Library review in ZeroGen, on your organization's host, after sign-in. null for test keys, whose sandbox the app doesn't show */
@@ -1305,6 +1526,24 @@ export interface components {
       createdBy: components["schemas"]["Creator"] | null;
       /** @description Where it was made: web (the ZeroGen app), agent (ZeroGen's Agent), mcp (an MCP client) or api (an API key); null with createdBy */
       createdVia: ("web" | "agent" | "mcp" | "api") | null;
+      /** @description Untrusted external upload provenance, or null when no declaration exists. */
+      declared: {
+        tool: {
+          name: string;
+          version?: string;
+          integration?: {
+            name: string;
+            version?: string;
+          };
+          models?: string[];
+        };
+        externalRef?: {
+          system: string;
+          id: string;
+        };
+        /** Format: date-time */
+        occurredAt?: string;
+      } | null;
       /** Format: date-time */
       createdAt: string;
       /** @description Opens the asset's Library review in ZeroGen, on your organization's host, after sign-in. null for test keys, whose sandbox the app doesn't show */
@@ -1312,6 +1551,10 @@ export interface components {
       /** @description The prompt that generated it, bounded; untrusted content */
       prompt: string | null;
       promptTruncated: boolean;
+      /** @description Untrusted external workflow, included only when requested. */
+      workflow?: {
+        [key: string]: unknown;
+      } | null;
       /** @description The asset's previews, or null until they're made after the asset is ready, and for assets with none, such as audio */
       preview: components["schemas"]["AssetPreview"] | null;
     };
@@ -1373,6 +1616,7 @@ export interface components {
         sourceAssetId: string;
         role: string | null;
         kind: string | null;
+        declared: boolean;
       }[];
       truncated: {
         sources: boolean;
@@ -1588,7 +1832,7 @@ export interface components {
         "application/json": components["schemas"]["ErrorResponse"];
       };
     };
-    /** @description The request body is larger than 128 KB. */
+    /** @description The request body is larger than this endpoint's limit: 128 KiB by default, or 512 KiB for `POST /uploads` and `POST /assets/{assetId}/declaration`. */
     PayloadTooLarge: {
       headers: {
         "Request-Id": components["headers"]["Request-Id"];
@@ -2356,7 +2600,10 @@ export interface operations {
   };
   getAsset: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Include an upload's untrusted workflow recipe. */
+        includeWorkflow?: boolean;
+      };
       header?: never;
       path: {
         /** @description The asset's ID */
@@ -2383,6 +2630,51 @@ export interface operations {
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
       404: components["responses"]["NotFound"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  declareAssetUpload: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Makes retries safe: a retry with the same key and body returns the first response for 24 hours instead of repeating the work. Reusing a key with a different body returns 409. */
+        "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        /** @description The asset's ID */
+        assetId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DeclareUploadRequest"];
+      };
+    };
+    responses: {
+      /** @description The declared upload. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          "Idempotent-Replayed": components["headers"]["Idempotent-Replayed"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AssetDeclaration"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      415: components["responses"]["UnsupportedMediaType"];
       429: components["responses"]["TooManyRequests"];
       500: components["responses"]["InternalError"];
       503: components["responses"]["ServiceUnavailable"];
