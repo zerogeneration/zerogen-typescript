@@ -4,10 +4,12 @@ import type { PagePromise } from "../pagination.js";
 import type {
   Asset,
   AssetChange,
+  AssetDeclaration,
   AssetDetail,
   AssetDownload,
   AssetFolders,
   AssetSearchQuery,
+  DeclareUploadRequest,
   Lineage,
   UpdateAssetRequest,
 } from "../types.js";
@@ -17,6 +19,11 @@ export type AssetFile = AssetDownload & {
   /** Storage's response: stream the file from `body`, or read it whole with `blob()`. */
   response: Response;
 };
+
+export interface AssetGetOptions extends RequestOptions {
+  /** Also read the `workflow` declared with an upload; untrusted content. */
+  includeWorkflow?: boolean;
+}
 
 export class Assets {
   readonly #client: ZeroGen;
@@ -43,10 +50,38 @@ export class Assets {
 
   /**
    * Reads an asset in any of the organization's projects, with the prompt that
-   * generated it and its `preview`.
+   * generated it, its `preview`, and what was `declared` about an upload. With
+   * `includeWorkflow`, it also reads the upload's declared `workflow`.
    */
-  get(assetId: string, options?: RequestOptions): Promise<AssetDetail> {
-    return this.#client.request({ method: "GET", path: path(assetId) }, options);
+  get(assetId: string, options: AssetGetOptions = {}): Promise<AssetDetail> {
+    const { includeWorkflow, ...rest } = options;
+    return this.#client.request(
+      {
+        method: "GET",
+        path: path(assetId),
+        query: { includeWorkflow: includeWorkflow ? true : undefined },
+      },
+      rest,
+    );
+  }
+
+  /**
+   * Declares how one of your uploads was made outside ZeroGen: the `tool`,
+   * and optionally its `sources`, `prompt`, `workflow`, `externalRef` and
+   * `occurredAt`. ZeroGen records the claim as the run that made the asset,
+   * without verifying it, charging for it, or starting anything. An upload
+   * takes one declaration, and only from the user who uploaded it. Declaring
+   * `sources` also needs the `library:read` scope.
+   */
+  declare(
+    assetId: string,
+    body: DeclareUploadRequest,
+    options?: RequestOptions,
+  ): Promise<AssetDeclaration> {
+    return this.#client.request(
+      { method: "POST", path: `${path(assetId)}/declaration`, body },
+      options,
+    );
   }
 
   /** What the asset was made from and what was made from it: up to 30 assets on each side. */

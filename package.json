@@ -1,6 +1,6 @@
 {
   "name": "@zerogen/sdk",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "The official TypeScript library for the ZeroGen API",
   "license": "MIT",
   "author": "ZeroGen LLC",
@@ -44,7 +44,7 @@
   "scripts": {
     "build": "tsup",
     "check": "npm run typecheck && npm run lint && npm test && npm run build",
-    "generate": "openapi-typescript openapi.json --output src/openapi.ts && biome format --write src/openapi.ts",
+    "generate": "node scripts/generate.mjs && biome format --write src/openapi.ts",
     "lint": "biome check .",
     "spec": "node scripts/fetch-spec.mjs && npm run generate",
     "test": "vitest run",

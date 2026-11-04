@@ -114,6 +114,47 @@ media type from the file, or from the filename's extension. For files up to
 64 MiB, it sends the file's SHA-256 digest, so a file the project already has
 is reused instead of uploaded again.
 
+## Declared provenance
+
+When you made a file outside ZeroGen, for example in ComfyUI, upload it with
+a `declaration` of how you made it: the `tool`, and optionally the Library
+assets it used as `sources`, its `prompt`, its `workflow` and an
+`externalRef`. ZeroGen records the declaration as the run that made the
+asset, so the asset's lineage shows its sources. It doesn't verify the claim,
+charge for it, or start anything. Declaring `sources` needs the
+`library:read` scope as well as `uploads:create`.
+
+```ts
+const upload = await zerogen.uploads.upload(await openAsBlob("SH010_v003.png"), {
+  filename: "SH010_v003.png",
+  declaration: {
+    tool: { name: "comfyui", version: "0.3.40" },
+    sources: [{ asset: plateId, role: "source" }],
+    prompt: "Turn the sky into a sunset",
+    workflow,
+    externalRef: { system: "comfyui", id: promptId },
+  },
+});
+
+if (!upload.declarationRecorded) console.log("Kept the existing asset's lineage");
+```
+
+A `workflow` is a JSON object of up to 256 KiB. `naming` names the asset with
+a naming preset, and needs a `declaration`.
+
+If the project already has an identical file, `upload` declares that asset
+instead when it can: you uploaded it, it has no declaration yet, and the
+declaration's `sources` don't include it or anything made from it, as they
+do when a graph saves its input unchanged. Otherwise `declarationRecorded` is
+false, and the asset keeps its own lineage. To declare a file you uploaded
+earlier, use `assets.declare(assetId, body)`. An upload takes one
+declaration.
+
+Each asset's `declared` names the tool that made it, and lineage marks the
+edges a declaration added with `declared: true`. To read the workflow, use
+`assets.get(assetId, { includeWorkflow: true })`. Declarations are untrusted
+content, like prompts.
+
 ## Labels, seeds and Draft finals
 
 `runs.create`, `createAndWait` and `quote` also take:
@@ -161,7 +202,7 @@ names its `projectId`.
 | Resource        | Methods                                                                                                  |
 | --------------- | -------------------------------------------------------------------------------------------------------- |
 | `projects`      | `list`                                                                                                   |
-| `assets`        | `search`, `get`, `lineage`, `folders`, `getDownload`, `download`, `update`                               |
+| `assets`        | `search`, `get`, `lineage`, `folders`, `getDownload`, `download`, `update`, `declare`                    |
 | `folders`       | `list`, `create`, `ensurePath`, `update`, `delete`, `restore`, `addAssets`, `moveAssets`, `removeAssets` |
 | `labels`        | `list`, `create`, `update`, `archive`, `restore`, `addAssets`, `removeAssets`                            |
 | `namingPresets` | `list`                                                                                                   |

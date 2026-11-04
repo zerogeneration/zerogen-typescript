@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
-import ZeroGen, { type AssetPreview, type Creator, type Run } from "../src/index.js";
-import { fakeFetch, json } from "./fake-fetch.js";
+import ZeroGen, {
+  type AssetPreview,
+  type CreateUploadRequest,
+  type Creator,
+  type DeclareUploadRequest,
+  type Run,
+} from "../src/index.js";
+import { apiError, fakeFetch, json } from "./fake-fetch.js";
 
 const client = (fetch: ReturnType<typeof fakeFetch>["fetch"]) =>
   new ZeroGen({ apiKey: "zg_test_key", fetch });
@@ -181,11 +187,142 @@ describe("uploads", () => {
     const file = new File([bytes], "clip.mov");
     const upload = await client(fetch).uploads.upload(file);
     expect(upload.assetId).toBe("a0");
+    expect(upload.declarationRecorded).toBe(false);
     expect(JSON.parse(calls[0]?.body as string)).toMatchObject({
       filename: "clip.mov",
       contentType: "video/quicktime",
     });
     expect(calls).toHaveLength(1);
+  });
+
+  describe("with a declaration", () => {
+    const declaration: DeclareUploadRequest = {
+      tool: { name: "comfyui", integration: { name: "zerogen-nodes", version: "0.1.0" } },
+      sources: [{ asset: "s1", role: "reference" }],
+      prompt: "A lighthouse at dawn",
+      workflow: { nodes: [] },
+      externalRef: { system: "comfyui", id: "prompt-1" },
+    };
+    const naming: CreateUploadRequest["naming"] = {
+      presetId: null,
+      definition: {
+        delimiter: "_",
+        fields: [
+          {
+            id: "shot",
+            kind: "shot",
+            label: "Shot",
+            prefix: "SH",
+            padding: 3,
+            step: 10,
+            sequence: "number",
+            artistFormat: "initials",
+            dateFormat: "YYYYMMDD",
+            defaultValue: "",
+          },
+        ],
+      },
+      values: { shot: 10 },
+    };
+    const ready = (assetId: string, runId: string | null) =>
+      json({ id: "u1", projectId: "p1", runId, status: "ready", assetId, upload: null });
+    const pending = () =>
+      json(
+        {
+          id: "u1",
+          projectId: "p1",
+          runId: "r1",
+          status: "upload_required",
+          assetId: null,
+          upload: { method: "PUT", url: "https://storage.example.com/u1", headers: {} },
+        },
+        201,
+      );
+
+    it("sends it with the upload, which records it as the asset's run", async () => {
+      const { fetch, calls } = fakeFetch(pending(), new Response(null), ready("u1", "r1"));
+      const upload = await client(fetch).uploads.upload(bytes, {
+        filename: "shot.png",
+        declaration,
+        naming,
+      });
+      expect(upload).toMatchObject({ assetId: "u1", runId: "r1", declarationRecorded: true });
+      expect(JSON.parse(calls[0]?.body as string)).toEqual({
+        filename: "shot.png",
+        contentType: "image/png",
+        sizeBytes: 5,
+        sha256: helloSha256,
+        ...declaration,
+        naming,
+      });
+      expect(calls).toHaveLength(3);
+    });
+
+    it("declares an identical file the project already has", async () => {
+      const { fetch, calls } = fakeFetch(
+        ready("a0", null),
+        json({ assetId: "a0", runId: "r2", asset: { id: "a0" } }),
+      );
+      const upload = await client(fetch).uploads.upload(bytes, {
+        filename: "shot.png",
+        declaration,
+        naming,
+      });
+      expect(upload).toMatchObject({ assetId: "a0", runId: null, declarationRecorded: true });
+      expect(calls[1]).toMatchObject({
+        method: "POST",
+        url: "https://api.zerogen.com/v1/assets/a0/declaration",
+      });
+      expect(JSON.parse(calls[1]?.body as string)).toEqual(declaration);
+      expect(calls[1]?.headers["idempotency-key"]).toBeDefined();
+    });
+
+    it("declares the identical file that completing reused", async () => {
+      const { fetch, calls } = fakeFetch(
+        pending(),
+        new Response(null),
+        ready("a0", null),
+        json({ assetId: "a0", runId: "r2", asset: { id: "a0" } }),
+      );
+      const upload = await client(fetch).uploads.upload(bytes, {
+        filename: "shot.png",
+        declaration,
+      });
+      expect(upload).toMatchObject({ assetId: "a0", runId: null, declarationRecorded: true });
+      expect(calls[3]?.url).toBe("https://api.zerogen.com/v1/assets/a0/declaration");
+    });
+
+    it("keeps an identical file that can't take the declaration", async () => {
+      for (const [status, code, param] of [
+        [409, "invalid_state", undefined],
+        [403, "permission_denied", undefined],
+        [400, "validation_failed", "sources"],
+      ] as const) {
+        const { fetch } = fakeFetch(ready("a0", null), apiError(status, code, { param }));
+        const upload = await client(fetch).uploads.upload(bytes, {
+          filename: "shot.png",
+          declaration,
+        });
+        expect(upload, code).toMatchObject({
+          assetId: "a0",
+          runId: null,
+          declarationRecorded: false,
+        });
+      }
+    });
+
+    it("throws any other error from declaring", async () => {
+      for (const [status, code, param] of [
+        [404, "not_found", "sources"],
+        [400, "validation_failed", "tool"],
+      ] as const) {
+        const { fetch } = fakeFetch(ready("a0", null), apiError(status, code, { param }));
+        await expect(
+          client(fetch).uploads.upload(bytes, { filename: "shot.png", declaration }),
+          code,
+        ).rejects.toMatchObject({ status, code, param });
+      }
+    });
   });
 
   it("needs a name and a type it can send", async () => {
