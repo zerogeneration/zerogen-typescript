@@ -159,7 +159,11 @@ describe("Library", () => {
     });
     expect(calls[0]?.body).toBeUndefined();
     expect(calls[0]?.headers["content-type"]).toBeUndefined();
-    expect(calls[1]?.headers["idempotency-key"]).toBe(calls[0]?.headers["idempotency-key"]);
+    const key = calls[0]?.headers["idempotency-key"];
+    expect(key).toMatch(/^[0-9a-f-]{36}$/u);
+    expect(calls[1]).toMatchObject({ method: "DELETE", url: calls[0]?.url });
+    expect(calls[1]?.headers["idempotency-key"]).toBe(key);
+    expect(calls[2]?.headers["idempotency-key"]).not.toBe(key);
     expect(JSON.parse(calls[2]?.body as string)).toEqual({ eventId: "e1" });
   });
 
