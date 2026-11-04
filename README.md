@@ -145,10 +145,11 @@ a naming preset, and needs a `declaration`.
 If the project already has an identical file, `upload` declares that asset
 instead when it can: you uploaded it, it has no declaration yet, and the
 declaration's `sources` don't include it or anything made from it, as they
-do when a graph saves its input unchanged. Otherwise `declarationRecorded` is
-false, and the asset keeps its own lineage. To declare a file you uploaded
-earlier, use `assets.declare(assetId, body)`. An upload takes one
-declaration.
+do when a graph saves its input unchanged. Then `declarationRecorded` is true,
+the result's `runId` stays null, and the run is the asset's `runId`. Otherwise
+`declarationRecorded` is false, and the asset keeps its own lineage. To declare
+a file you uploaded earlier, use `assets.declare(assetId, body)`. An upload
+takes one declaration.
 
 Each asset's `declared` names the tool that made it, and lineage marks the
 edges a declaration added with `declared: true`. To read the workflow, use
