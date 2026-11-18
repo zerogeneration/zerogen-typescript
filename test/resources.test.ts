@@ -1,22 +1,27 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 import ZeroGen, {
   type AssetPreview,
   type CreateUploadRequest,
   type Creator,
   type DeclareUploadRequest,
+  hasEnded,
+  type Quote,
   type Run,
+  type RunStatus,
 } from "../src/index.js";
 import { apiError, fakeFetch, json } from "./fake-fetch.js";
 
 const client = (fetch: ReturnType<typeof fakeFetch>["fetch"]) =>
   new ZeroGen({ apiKey: "zg_test_key", fetch });
 
+const ENDED_AT = "2026-11-18T00:00:00.000Z";
+
 describe("runs", () => {
   it("createAndWait holds the create, then waits on the run until it ends", async () => {
     const { fetch, calls } = fakeFetch(
-      json({ id: "r1", status: "running" }, 202),
-      json({ id: "r1", status: "running" }),
-      json({ id: "r1", status: "succeeded", outputs: [] }),
+      json({ id: "r1", status: "running", endedAt: null }, 202),
+      json({ id: "r1", status: "running", endedAt: null }),
+      json({ id: "r1", status: "succeeded", outputs: [], endedAt: ENDED_AT }),
     );
     const run = await client(fetch).runs.createAndWait({
       model: "openai/gpt-image-2/generate",
@@ -35,10 +40,67 @@ describe("runs", () => {
   });
 
   it("createAndWait returns a run that ended within the create", async () => {
-    const { fetch, calls } = fakeFetch(json({ id: "r1", status: "failed", error: {} }));
+    const { fetch, calls } = fakeFetch(
+      json({ id: "r1", status: "failed", error: {}, endedAt: ENDED_AT }),
+    );
     const run = await client(fetch).runs.createAndWait({ model: "a/b/generate" });
     expect(run.status).toBe("failed");
     expect(calls).toHaveLength(1);
+  });
+
+  it("waits by endedAt, so a status it doesn't know can't keep it waiting", async () => {
+    const { fetch, calls } = fakeFetch(
+      json({ id: "r1", status: "succeeded", endedAt: null }),
+      json({ id: "r1", status: "expired", endedAt: ENDED_AT }),
+    );
+    const run = await client(fetch).runs.waitFor("r1");
+    const status: RunStatus = run.status;
+    expect(status).toBe("expired");
+    expect(calls).toHaveLength(2);
+  });
+
+  it("tells whether a run has ended from endedAt alone", () => {
+    expect(hasEnded({ endedAt: ENDED_AT })).toBe(true);
+    expect(hasEnded({ endedAt: null })).toBe(false);
+    expectTypeOf<"succeeded">().toExtend<RunStatus>();
+    expectTypeOf<"a-status-added-later">().toExtend<RunStatus>();
+  });
+
+  it("filters the organization's runs by who started them, status and time", async () => {
+    const { fetch, calls } = fakeFetch(json({ data: [], nextCursor: null }));
+    await client(fetch).runs.list({
+      createdBy: ["u1", "u2"],
+      status: ["failed", "cancelled"],
+      createdAfter: new Date("2026-11-10T00:00:00Z"),
+      createdBefore: "2026-11-11T00:00:00Z",
+    });
+    const url = new URL(calls[0]?.url as string);
+    expect(url.pathname).toBe("/v1/runs");
+    expect(url.searchParams.getAll("createdBy")).toEqual(["u1", "u2"]);
+    expect(url.searchParams.getAll("status")).toEqual(["failed", "cancelled"]);
+    expect(url.searchParams.get("createdAfter")).toBe("2026-11-10T00:00:00.000Z");
+    expect(url.searchParams.get("createdBefore")).toBe("2026-11-11T00:00:00Z");
+  });
+
+  it("creates a run with the inputs its quote returned", async () => {
+    const quote: Pick<Quote, "inputs"> = {
+      inputs: [{ role: "reference", asset: "a9" }],
+    };
+    const { fetch, calls } = fakeFetch(json({ id: "r1", status: "queued" }, 202));
+    await client(fetch).runs.create({ model: "a/b/edit", prompt: "Dusk", inputs: quote.inputs });
+    expect(JSON.parse(calls[0]?.body as string).inputs).toEqual(quote.inputs);
+  });
+
+  it("reads what a run was asked and what kind it is", async () => {
+    const made: Pick<Run, "kind" | "model" | "request"> = {
+      kind: "generation",
+      model: "a/b/generate",
+      request: { model: "a/b/generate", prompt: "A lighthouse at dawn", seed: 7 },
+    };
+    const { fetch } = fakeFetch(json({ id: "r1", status: "succeeded", ...made }));
+    const run = await client(fetch).runs.get("r1");
+    expect(run.kind).toBe("generation");
+    expect(run.request?.prompt).toBe("A lighthouse at dawn");
   });
 
   it("lists every page with the same filters", async () => {
@@ -132,6 +194,48 @@ describe("runs", () => {
     expect(page.data).toHaveLength(1);
     expect(page.hasNextPage()).toBe(true);
     expect(calls).toHaveLength(1);
+  });
+});
+
+describe("run output downloads", () => {
+  const signed = "https://storage.example.com/a1.png?X-Amz-Signature=secret";
+  const link = (url: string) => ({
+    assetId: "a1",
+    projectId: "p1",
+    url,
+    expiresAt: "2026-11-18T00:05:00.000Z",
+    filename: "lighthouse.png",
+    mimeType: "image/png",
+    sizeBytes: 5,
+  });
+
+  it("reads an output's signed URL by the run's ID and the output's asset ID", async () => {
+    const { fetch, calls } = fakeFetch(json(link(signed)));
+    const download = await client(fetch).runs.getOutputDownload("r 1", "a1");
+    expect(download.url).toBe(signed);
+    expect(calls[0]?.url).toBe("https://api.zerogen.com/v1/runs/r%201/outputs/a1/download");
+  });
+
+  it("downloads an output without sending the API key to storage", async () => {
+    const fresh = "https://storage.example.com/a1.png?X-Amz-Signature=fresh";
+    const { fetch, calls } = fakeFetch(
+      json(link(signed)),
+      new Response("<Error><Code>AccessDenied</Code></Error>", { status: 403 }),
+      json(link(fresh)),
+      new Response("bytes"),
+    );
+    const file = await client(fetch).runs.downloadOutput("r1", "a1", {
+      headers: { "X-Trace": "t1" },
+    });
+    expect(await file.response.text()).toBe("bytes");
+    expect(calls.map((call) => call.url)).toEqual([
+      "https://api.zerogen.com/v1/runs/r1/outputs/a1/download",
+      signed,
+      "https://api.zerogen.com/v1/runs/r1/outputs/a1/download",
+      fresh,
+    ]);
+    expect(calls[1]?.headers).toEqual({});
+    expect(calls[3]?.headers).toEqual({});
   });
 });
 
@@ -293,12 +397,13 @@ describe("uploads", () => {
     });
 
     it("keeps an identical file that can't take the declaration", async () => {
-      for (const [status, code, param] of [
-        [409, "invalid_state", undefined],
-        [403, "permission_denied", undefined],
-        [400, "validation_failed", "sources"],
+      for (const [status, code, param, reason] of [
+        [409, "invalid_state", undefined, undefined],
+        [403, "permission_denied", undefined, "not_creator"],
+        [400, "validation_failed", "sources", undefined],
       ] as const) {
-        const { fetch } = fakeFetch(ready("a0", null), apiError(status, code, { param }));
+        const details = reason ? { reason } : undefined;
+        const { fetch } = fakeFetch(ready("a0", null), apiError(status, code, { param, details }));
         const upload = await client(fetch).uploads.upload(bytes, {
           filename: "shot.png",
           declaration,
@@ -312,11 +417,13 @@ describe("uploads", () => {
     });
 
     it("throws any other error from declaring", async () => {
-      for (const [status, code, param] of [
-        [404, "not_found", "sources"],
-        [400, "validation_failed", "tool"],
+      for (const [status, code, param, reason] of [
+        [404, "not_found", "sources", undefined],
+        [400, "validation_failed", "tool", undefined],
+        [403, "permission_denied", undefined, "scope_required"],
       ] as const) {
-        const { fetch } = fakeFetch(ready("a0", null), apiError(status, code, { param }));
+        const details = reason ? { reason } : undefined;
+        const { fetch } = fakeFetch(ready("a0", null), apiError(status, code, { param, details }));
         await expect(
           client(fetch).uploads.upload(bytes, { filename: "shot.png", declaration }),
           code,

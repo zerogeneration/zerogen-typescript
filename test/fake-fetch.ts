@@ -36,7 +36,12 @@ export function json(body: unknown, status = 200, headers: Record<string, string
 export function apiError(
   status: number,
   code: string,
-  options: { retryable?: boolean; param?: string; headers?: Record<string, string> } = {},
+  options: {
+    retryable?: boolean;
+    param?: string;
+    details?: Record<string, unknown>;
+    headers?: Record<string, string>;
+  } = {},
 ): Response {
   return json(
     {
@@ -45,6 +50,7 @@ export function apiError(
         message: `${code} message`,
         retryable: options.retryable ?? false,
         ...(options.param ? { param: options.param } : {}),
+        ...(options.details ? { details: options.details } : {}),
       },
     },
     status,

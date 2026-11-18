@@ -1,10 +1,10 @@
 import type { RequestOptions, ZeroGen } from "../client.js";
 import type { PagePromise } from "../pagination.js";
 import type {
+  AssetBatchChange,
+  AssetBatchRequest,
   CreateFolderRequest,
   Folder,
-  FolderAssetsChange,
-  FolderAssetsRequest,
   FolderDelete,
   FolderDeleteQuery,
   FolderListQuery,
@@ -36,16 +36,24 @@ export class Folders {
     query: FolderListQuery = {},
     options?: RequestOptions,
   ): PagePromise<Folder> {
-    return this.#client.list({ method: "GET", path: path(projectId), query }, options);
+    return this.#client.list(
+      { method: "GET", path: "/folders", query: { ...query, projectId } },
+      options,
+    );
+  }
+
+  /** Reads a folder by its ID, in whichever of the organization's projects holds it. */
+  get(folderId: string, options?: RequestOptions): Promise<Folder> {
+    return this.#client.request({ method: "GET", path: path(folderId) }, options);
   }
 
   /**
-   * Creates a folder at the project root or under `parentId`. With
+   * Creates a folder in `projectId`, at its root or under `parentId`. With
    * `reuseExisting`, a folder of that name already under the parent is
    * returned instead. A test key can't create folders.
    */
-  create(projectId: string, body: CreateFolderRequest, options?: RequestOptions): Promise<Folder> {
-    return this.#client.request({ method: "POST", path: path(projectId), body }, options);
+  create(body: CreateFolderRequest, options?: RequestOptions): Promise<Folder> {
+    return this.#client.request({ method: "POST", path: "/folders", body }, options);
   }
 
   /**
@@ -75,8 +83,7 @@ export class Folders {
     let folder: Folder | undefined;
     for (const name of names) {
       folder = await this.create(
-        projectId,
-        { name, parentId: folder?.id ?? parentId, reuseExisting: true },
+        { projectId, name, parentId: folder?.id ?? parentId, reuseExisting: true },
         request,
       );
     }
@@ -84,19 +91,12 @@ export class Folders {
   }
 
   /**
-   * Renames a folder, moves it under another parent (or to the project root
-   * with `parentId: null`), or both.
+   * Renames a folder, moves it under another parent in its project (or to the
+   * project root with `parentId: null`), or both, together. Resolves with the
+   * folder as it ends.
    */
-  update(
-    projectId: string,
-    folderId: string,
-    body: UpdateFolderRequest,
-    options?: RequestOptions,
-  ): Promise<Folder> {
-    return this.#client.request(
-      { method: "PATCH", path: path(projectId, folderId), body },
-      options,
-    );
+  update(folderId: string, body: UpdateFolderRequest, options?: RequestOptions): Promise<Folder> {
+    return this.#client.request({ method: "PATCH", path: path(folderId), body }, options);
   }
 
   /**
@@ -108,15 +108,11 @@ export class Folders {
    * folder. A test key can't delete folders.
    */
   delete(
-    projectId: string,
     folderId: string,
     query: FolderDeleteQuery,
     options?: RequestOptions,
   ): Promise<FolderDelete> {
-    return this.#client.request(
-      { method: "DELETE", path: path(projectId, folderId), query },
-      options,
-    );
+    return this.#client.request({ method: "DELETE", path: path(folderId), query }, options);
   }
 
   /**
@@ -124,26 +120,21 @@ export class Folders {
    * its folders, their placements, and the assets it trashed. It needs the
    * `library:organize` scope. A test key can't restore folders.
    */
-  restore(
-    projectId: string,
-    body: RestoreFolderRequest,
-    options?: RequestOptions,
-  ): Promise<FolderRestore> {
-    return this.#client.request(
-      { method: "POST", path: `${path(projectId)}/restore`, body },
-      options,
-    );
+  restore(body: RestoreFolderRequest, options?: RequestOptions): Promise<FolderRestore> {
+    return this.#client.request({ method: "POST", path: "/folders/restore", body }, options);
   }
 
-  /** Adds up to 100 assets to the folder, keeping their other folders. */
+  /**
+   * Adds up to 100 assets in the folder's project to the folder, keeping their
+   * other folders. Assets already in it, or not in its project, are skipped.
+   */
   addAssets(
-    projectId: string,
     folderId: string,
-    body: FolderAssetsRequest,
+    body: AssetBatchRequest,
     options?: RequestOptions,
-  ): Promise<FolderAssetsChange> {
+  ): Promise<AssetBatchChange> {
     return this.#client.request(
-      { method: "POST", path: `${path(projectId, folderId)}/assets`, body },
+      { method: "POST", path: `${path(folderId)}/assets`, body },
       options,
     );
   }
@@ -153,32 +144,29 @@ export class Folders {
    * other folders keep them.
    */
   moveAssets(
-    projectId: string,
     folderId: string,
     body: MoveAssetsRequest,
     options?: RequestOptions,
-  ): Promise<FolderAssetsChange> {
+  ): Promise<AssetBatchChange> {
     return this.#client.request(
-      { method: "POST", path: `${path(projectId, folderId)}/assets/move`, body },
+      { method: "POST", path: `${path(folderId)}/assets/move`, body },
       options,
     );
   }
 
   /** Takes up to 100 assets out of the folder. They stay in the Library and their other folders. */
   removeAssets(
-    projectId: string,
     folderId: string,
-    body: FolderAssetsRequest,
+    body: AssetBatchRequest,
     options?: RequestOptions,
-  ): Promise<FolderAssetsChange> {
+  ): Promise<AssetBatchChange> {
     return this.#client.request(
-      { method: "POST", path: `${path(projectId, folderId)}/assets/remove`, body },
+      { method: "POST", path: `${path(folderId)}/assets/remove`, body },
       options,
     );
   }
 }
 
-function path(projectId: string, folderId?: string): string {
-  const folders = `/projects/${encodeURIComponent(projectId)}/folders`;
-  return folderId === undefined ? folders : `${folders}/${encodeURIComponent(folderId)}`;
+function path(folderId: string): string {
+  return `/folders/${encodeURIComponent(folderId)}`;
 }

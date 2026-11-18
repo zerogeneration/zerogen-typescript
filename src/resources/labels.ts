@@ -1,10 +1,10 @@
 import type { RequestOptions, ZeroGen } from "../client.js";
 import type { PagePromise } from "../pagination.js";
 import type {
+  AssetBatchChange,
+  AssetBatchRequest,
   CreateLabelRequest,
   Label,
-  LabelAssetsChange,
-  LabelAssetsRequest,
   LabelListQuery,
   UpdateLabelRequest,
 } from "../types.js";
@@ -21,14 +21,22 @@ export class Labels {
     return this.#client.list({ method: "GET", path: "/labels", query }, options);
   }
 
+  /** Reads a label. An archived label reads only for owners and admins. */
+  get(labelId: string, options?: RequestOptions): Promise<Label> {
+    return this.#client.request({ method: "GET", path: path(labelId) }, options);
+  }
+
   /** Creates an organization label; owners and admins only. A test key can't create labels. */
   create(body: CreateLabelRequest, options?: RequestOptions): Promise<Label> {
     return this.#client.request({ method: "POST", path: "/labels", body }, options);
   }
 
-  /** Replaces a label's name, description and color, so send all three; owners and admins only. */
+  /**
+   * Changes a label's name, description or color, keeping the fields you leave
+   * out; owners and admins only.
+   */
   update(labelId: string, body: UpdateLabelRequest, options?: RequestOptions): Promise<Label> {
-    return this.#client.request({ method: "PUT", path: path(labelId), body }, options);
+    return this.#client.request({ method: "PATCH", path: path(labelId), body }, options);
   }
 
   /** Archives a label; its assets keep it. Owners and admins only. */
@@ -41,28 +49,29 @@ export class Labels {
     return this.#client.request({ method: "POST", path: `${path(labelId)}/restore` }, options);
   }
 
-  /** Adds the label to up to 50 assets in the project, all or none. */
+  /**
+   * Adds the label to up to 100 assets, in any of the organization's projects,
+   * all or none. Assets that already had it are skipped.
+   */
   addAssets(
-    projectId: string,
     labelId: string,
-    body: LabelAssetsRequest,
+    body: AssetBatchRequest,
     options?: RequestOptions,
-  ): Promise<LabelAssetsChange> {
-    return this.#client.request(
-      { method: "POST", path: assetsPath(projectId, labelId), body },
-      options,
-    );
+  ): Promise<AssetBatchChange> {
+    return this.#client.request({ method: "POST", path: `${path(labelId)}/assets`, body }, options);
   }
 
-  /** Removes the label from up to 50 assets in the project, all or none. The label stays. */
+  /**
+   * Removes the label from up to 100 assets, in any of the organization's
+   * projects, all or none. The label stays.
+   */
   removeAssets(
-    projectId: string,
     labelId: string,
-    body: LabelAssetsRequest,
+    body: AssetBatchRequest,
     options?: RequestOptions,
-  ): Promise<LabelAssetsChange> {
+  ): Promise<AssetBatchChange> {
     return this.#client.request(
-      { method: "POST", path: `${assetsPath(projectId, labelId)}/remove`, body },
+      { method: "POST", path: `${path(labelId)}/assets/remove`, body },
       options,
     );
   }
@@ -70,8 +79,4 @@ export class Labels {
 
 function path(labelId: string): string {
   return `/labels/${encodeURIComponent(labelId)}`;
-}
-
-function assetsPath(projectId: string, labelId: string): string {
-  return `/projects/${encodeURIComponent(projectId)}/labels/${encodeURIComponent(labelId)}/assets`;
 }

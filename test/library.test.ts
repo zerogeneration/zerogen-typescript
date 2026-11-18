@@ -1,13 +1,19 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 import ZeroGen, {
   type Asset,
   type AssetDetail,
   type AssetPreview,
+  type AudioRecipe,
+  type CreateNamingPresetRequest,
   type Creator,
   type FolderDelete,
   type FolderRestore,
-  type Lineage,
+  type FrameRecipe,
+  type ImageRecipe,
+  type LineageAsset,
   type RequestOptions,
+  type TransformRecipe,
+  type VideoRecipe,
   ZeroGenError,
 } from "../src/index.js";
 import { apiError, fakeFetch, json } from "./fake-fetch.js";
@@ -17,11 +23,34 @@ const client = (fetch: ReturnType<typeof fakeFetch>["fetch"]) =>
 
 const BASE = "https://api.zerogen.com/v1";
 const assetIds = ["a1", "a2"];
+const namingPreset: CreateNamingPresetRequest = {
+  projectId: "p1",
+  name: "Shots",
+  definition: {
+    delimiter: "_",
+    fields: [
+      {
+        id: "shot",
+        kind: "shot",
+        label: "Shot",
+        prefix: "SH",
+        padding: 3,
+        step: 10,
+        sequence: "number",
+        artistFormat: "initials",
+        dateFormat: "YYYYMMDD",
+        defaultValue: "",
+      },
+    ],
+  },
+};
 
 describe("Library", () => {
   it("sends each method to its route", async () => {
     const cases: [string, (z: ZeroGen) => PromiseLike<unknown>, string, unknown?][] = [
       ["GET /projects", (z) => z.projects.list(), "/projects"],
+      ["GET /projects?limit=100", (z) => z.projects.list({ limit: 100 }), "/projects?limit=100"],
+      ["GET /projects/p1", (z) => z.projects.get("p1"), "/projects/p1"],
       ["GET /assets/a1", (z) => z.assets.get("a1"), "/assets/a1"],
       [
         "GET /assets/a1?includeWorkflow=true",
@@ -34,59 +63,74 @@ describe("Library", () => {
         "/assets/a1/declaration",
         { tool: { name: "ffmpeg" } },
       ],
-      ["GET /assets/a1/lineage", (z) => z.assets.lineage("a1"), "/assets/a1/lineage"],
+      ["GET /assets/a1/sources", (z) => z.assets.sources("a1"), "/assets/a1/sources"],
+      [
+        "GET /assets/a1/uses?limit=100",
+        (z) => z.assets.uses("a1", { limit: 100 }),
+        "/assets/a1/uses?limit=100",
+      ],
       ["GET /assets/a1/folders", (z) => z.assets.folders("a1"), "/assets/a1/folders"],
       ["GET /assets/a1/download", (z) => z.assets.getDownload("a1"), "/assets/a1/download"],
       [
-        "PATCH /projects/p1/assets/a1",
-        (z) => z.assets.update("p1", "a1", { favorite: true }),
-        "/projects/p1/assets/a1",
+        "PATCH /assets/a1",
+        (z) => z.assets.update("a1", { favorite: true }),
+        "/assets/a1",
         { favorite: true },
       ],
+      ["DELETE /assets/a1", (z) => z.assets.delete("a1"), "/assets/a1"],
+      ["POST /assets/a1/restore", (z) => z.assets.restore("a1"), "/assets/a1/restore"],
       [
-        "GET /projects/p1/folders",
+        "POST /assets/a1/transform",
+        (z) => z.assets.transform("a1", { recipe: { extractFrame: { timeSeconds: 2 } } }),
+        "/assets/a1/transform",
+        { recipe: { extractFrame: { timeSeconds: 2 } } },
+      ],
+      ["GET /luts", (z) => z.luts.list({ limit: 100 }), "/luts?limit=100"],
+      [
+        "GET /folders?projectId=p1",
         (z) => z.folders.list("p1", { limit: 100 }),
-        "/projects/p1/folders?limit=100",
+        "/folders?limit=100&projectId=p1",
+      ],
+      ["GET /folders/f1", (z) => z.folders.get("f1"), "/folders/f1"],
+      [
+        "POST /folders",
+        (z) => z.folders.create({ projectId: "p1", name: "Selects" }),
+        "/folders",
+        { projectId: "p1", name: "Selects" },
       ],
       [
-        "POST /projects/p1/folders",
-        (z) => z.folders.create("p1", { name: "Selects" }),
-        "/projects/p1/folders",
-        { name: "Selects" },
-      ],
-      [
-        "PATCH /projects/p1/folders/f1",
-        (z) => z.folders.update("p1", "f1", { parentId: null }),
-        "/projects/p1/folders/f1",
+        "PATCH /folders/f1",
+        (z) => z.folders.update("f1", { parentId: null }),
+        "/folders/f1",
         { parentId: null },
       ],
       [
-        "DELETE /projects/p1/folders/f1",
-        (z) => z.folders.delete("p1", "f1", { assets: "keep" }),
-        "/projects/p1/folders/f1?assets=keep",
+        "DELETE /folders/f1",
+        (z) => z.folders.delete("f1", { assets: "keep" }),
+        "/folders/f1?assets=keep",
       ],
       [
-        "POST /projects/p1/folders/restore",
-        (z) => z.folders.restore("p1", { eventId: "e1" }),
-        "/projects/p1/folders/restore",
+        "POST /folders/restore",
+        (z) => z.folders.restore({ eventId: "e1" }),
+        "/folders/restore",
         { eventId: "e1" },
       ],
       [
-        "POST /projects/p1/folders/f1/assets",
-        (z) => z.folders.addAssets("p1", "f1", { assetIds }),
-        "/projects/p1/folders/f1/assets",
+        "POST /folders/f1/assets",
+        (z) => z.folders.addAssets("f1", { assetIds }),
+        "/folders/f1/assets",
         { assetIds },
       ],
       [
-        "POST /projects/p1/folders/f1/assets/move",
-        (z) => z.folders.moveAssets("p1", "f1", { assetIds, fromFolderId: "f0" }),
-        "/projects/p1/folders/f1/assets/move",
+        "POST /folders/f1/assets/move",
+        (z) => z.folders.moveAssets("f1", { assetIds, fromFolderId: "f0" }),
+        "/folders/f1/assets/move",
         { assetIds, fromFolderId: "f0" },
       ],
       [
-        "POST /projects/p1/folders/f1/assets/remove",
-        (z) => z.folders.removeAssets("p1", "f1", { assetIds }),
-        "/projects/p1/folders/f1/assets/remove",
+        "POST /folders/f1/assets/remove",
+        (z) => z.folders.removeAssets("f1", { assetIds }),
+        "/folders/f1/assets/remove",
         { assetIds },
       ],
       [
@@ -94,34 +138,79 @@ describe("Library", () => {
         (z) => z.labels.list({ includeArchived: false }),
         "/labels?includeArchived=false",
       ],
+      ["GET /labels/l1", (z) => z.labels.get("l1"), "/labels/l1"],
       ["POST /labels", (z) => z.labels.create({ name: "Hero" }), "/labels", { name: "Hero" }],
       [
-        "PUT /labels/l1",
-        (z) => z.labels.update("l1", { name: "Hero", description: "", color: "#3b82f6" }),
+        "PATCH /labels/l1",
+        (z) => z.labels.update("l1", { color: "#3b82f6" }),
         "/labels/l1",
-        { name: "Hero", description: "", color: "#3b82f6" },
+        { color: "#3b82f6" },
       ],
       ["POST /labels/l1/archive", (z) => z.labels.archive("l1"), "/labels/l1/archive"],
       ["POST /labels/l1/restore", (z) => z.labels.restore("l1"), "/labels/l1/restore"],
       [
-        "POST /projects/p1/labels/l1/assets",
-        (z) => z.labels.addAssets("p1", "l1", { assetIds }),
-        "/projects/p1/labels/l1/assets",
+        "POST /labels/l1/assets",
+        (z) => z.labels.addAssets("l1", { assetIds }),
+        "/labels/l1/assets",
         { assetIds },
       ],
       [
-        "POST /projects/p1/labels/l1/assets/remove",
-        (z) => z.labels.removeAssets("p1", "l1", { assetIds }),
-        "/projects/p1/labels/l1/assets/remove",
+        "POST /labels/l1/assets/remove",
+        (z) => z.labels.removeAssets("l1", { assetIds }),
+        "/labels/l1/assets/remove",
         { assetIds },
       ],
       [
-        "GET /projects/p1/naming-presets",
+        "GET /naming-presets?projectId=p1",
         (z) => z.namingPresets.list("p1"),
-        "/projects/p1/naming-presets",
+        "/naming-presets?projectId=p1",
+      ],
+      [
+        "POST /naming-presets",
+        (z) => z.namingPresets.create(namingPreset),
+        "/naming-presets",
+        namingPreset,
       ],
       ["GET /skills", (z) => z.skills.list({ projectId: "p1" }), "/skills?projectId=p1"],
       ["GET /skills/s1", (z) => z.skills.get("s1", { projectId: "p1" }), "/skills/s1?projectId=p1"],
+      [
+        "GET /attachments?projectId=p1",
+        (z) => z.attachments.list("p1", { folderId: "f1" }),
+        "/attachments?folderId=f1&projectId=p1",
+      ],
+      [
+        "POST /attachments",
+        (z) => z.attachments.create({ projectId: "p1", title: "Brief", body: "Moody" }),
+        "/attachments",
+        { projectId: "p1", title: "Brief", body: "Moody" },
+      ],
+      [
+        "GET /attachments/t1?version=2",
+        (z) => z.attachments.get("t1", { version: 2 }),
+        "/attachments/t1?version=2",
+      ],
+      [
+        "PATCH /attachments/t1",
+        (z) => z.attachments.revise("t1", { expectedVersion: 2, body: "Brighter" }),
+        "/attachments/t1",
+        { expectedVersion: 2, body: "Brighter" },
+      ],
+      [
+        "DELETE /attachments/t1",
+        (z) => z.attachments.delete("t1", { expectedVersion: 3 }),
+        "/attachments/t1?expectedVersion=3",
+      ],
+      [
+        "POST /attachments/t1/restore",
+        (z) => z.attachments.restore("t1", { version: 1, expectedVersion: 4 }),
+        "/attachments/t1/restore",
+        { version: 1, expectedVersion: 4 },
+      ],
+      [
+        "GET /attachments/t1/versions",
+        (z) => z.attachments.versions("t1"),
+        "/attachments/t1/versions",
+      ],
     ];
     for (const [name, call, path, body] of cases) {
       const { fetch, calls } = fakeFetch(json({ data: [], nextCursor: null }));
@@ -132,9 +221,7 @@ describe("Library", () => {
         calls[0]?.body === undefined ? undefined : JSON.parse(calls[0].body as string),
         name,
       ).toEqual(body);
-      expect(calls[0]?.headers["idempotency-key"] !== undefined, name).toBe(
-        method === "POST" || method === "DELETE",
-      );
+      expect(calls[0]?.headers["idempotency-key"] !== undefined, name).toBe(method !== "GET");
     }
   });
 
@@ -151,12 +238,9 @@ describe("Library", () => {
       json(restored),
     );
     const zerogen = client(fetch);
-    const { eventId } = await zerogen.folders.delete("p1", "f1", { assets: "trash" });
-    expect(await zerogen.folders.restore("p1", { eventId })).toEqual(restored);
-    expect(calls[0]).toMatchObject({
-      method: "DELETE",
-      url: `${BASE}/projects/p1/folders/f1?assets=trash`,
-    });
+    const { eventId } = await zerogen.folders.delete("f1", { assets: "trash" });
+    expect(await zerogen.folders.restore({ eventId })).toEqual(restored);
+    expect(calls[0]).toMatchObject({ method: "DELETE", url: `${BASE}/folders/f1?assets=trash` });
     expect(calls[0]?.body).toBeUndefined();
     expect(calls[0]?.headers["content-type"]).toBeUndefined();
     const key = calls[0]?.headers["idempotency-key"];
@@ -169,8 +253,8 @@ describe("Library", () => {
 
   it("encodes IDs into the path", async () => {
     const { fetch, calls } = fakeFetch(json({}));
-    await client(fetch).folders.update("p/1", "f 1", { name: "Selects" });
-    expect(calls[0]?.url).toBe(`${BASE}/projects/p%2F1/folders/f%201`);
+    await client(fetch).folders.update("f/1 2", { name: "Selects" });
+    expect(calls[0]?.url).toBe(`${BASE}/folders/f%2F1%202`);
   });
 
   it("ensurePath finds or creates each folder of a path in turn", async () => {
@@ -181,8 +265,8 @@ describe("Library", () => {
     const folder = await client(fetch).folders.ensurePath("p1", "/Shots//anim/");
     expect(folder).toMatchObject({ id: "f2", parentId: "f1" });
     expect(calls.map((call) => [call.url, JSON.parse(call.body as string)])).toEqual([
-      [`${BASE}/projects/p1/folders`, { name: "Shots", parentId: null, reuseExisting: true }],
-      [`${BASE}/projects/p1/folders`, { name: "anim", parentId: "f1", reuseExisting: true }],
+      [`${BASE}/folders`, { projectId: "p1", name: "Shots", parentId: null, reuseExisting: true }],
+      [`${BASE}/folders`, { projectId: "p1", name: "anim", parentId: "f1", reuseExisting: true }],
     ]);
     expect(new Set(calls.map((call) => call.headers["idempotency-key"])).size).toBe(2);
   });
@@ -191,6 +275,7 @@ describe("Library", () => {
     const { fetch, calls } = fakeFetch(json({ id: "f2", parentId: "f0", name: "2026/11/01" }));
     await client(fetch).folders.ensurePath("p1", ["2026/11/01"], { parentId: "f0" });
     expect(JSON.parse(calls[0]?.body as string)).toEqual({
+      projectId: "p1",
       name: "2026/11/01",
       parentId: "f0",
       reuseExisting: true,
@@ -371,20 +456,21 @@ describe("declared provenance", () => {
   });
 
   it("marks declared lineage edges", async () => {
-    const edges: Lineage["edges"] = [
-      { assetId: "a1", sourceAssetId: "a0", role: "source", kind: null, declared: true },
-    ];
-    const { fetch } = fakeFetch(
-      json({
-        asset: null,
-        sources: [],
-        uses: [],
-        edges,
-        truncated: { sources: false, uses: false },
-      }),
-    );
-    const lineage = await client(fetch).assets.lineage("a1");
-    expect(lineage.edges[0]?.declared).toBe(true);
+    const source: LineageAsset = {
+      assetId: "a0",
+      depth: 1,
+      found: true,
+      deleted: false,
+      name: "Plate",
+      origin: "upload",
+      mimeType: "image/png",
+      runId: null,
+      prompt: null,
+      edges: [{ assetId: "a1", sourceAssetId: "a0", role: "source", kind: null, declared: true }],
+    };
+    const { fetch } = fakeFetch(json({ data: [source], nextCursor: null }));
+    const page = await client(fetch).assets.sources("a1");
+    expect(page.data[0]?.edges[0]?.declared).toBe(true);
   });
 });
 
@@ -464,5 +550,87 @@ describe("assets.download", () => {
     const file = await client(fetch).assets.download("a1");
     expect(await file.response.text()).toBe("bytes");
     expect(calls.map((call) => call.url)).toEqual([`${BASE}/assets/a1/download`, signed, signed]);
+  });
+});
+
+describe("Library lists", () => {
+  it("reads every page of every list, with the same filters", async () => {
+    const lists: [string, (z: ZeroGen) => AsyncIterable<unknown>][] = [
+      ["/projects?limit=1", (z) => z.projects.list({ limit: 1 })],
+      ["/assets/a1/sources?limit=1", (z) => z.assets.sources("a1", { limit: 1 })],
+      ["/assets/a1/uses?limit=1", (z) => z.assets.uses("a1", { limit: 1 })],
+      ["/assets/a1/folders?limit=1", (z) => z.assets.folders("a1", { limit: 1 })],
+      ["/luts?limit=1", (z) => z.luts.list({ limit: 1 })],
+      ["/folders?limit=1&projectId=p1", (z) => z.folders.list("p1", { limit: 1 })],
+      ["/naming-presets?limit=1&projectId=p1", (z) => z.namingPresets.list("p1", { limit: 1 })],
+      ["/labels?limit=1", (z) => z.labels.list({ limit: 1 })],
+      [
+        "/attachments?clipId=c1&limit=1&projectId=p1",
+        (z) => z.attachments.list("p1", { clipId: "c1", limit: 1 }),
+      ],
+      ["/attachments/t1/versions?limit=1", (z) => z.attachments.versions("t1", { limit: 1 })],
+    ];
+    for (const [path, list] of lists) {
+      const { fetch, calls } = fakeFetch(
+        json({ data: [{ id: "1" }], nextCursor: "c2" }),
+        json({ data: [{ id: "2" }], nextCursor: null }),
+      );
+      const ids: string[] = [];
+      for await (const item of list(client(fetch))) ids.push((item as { id: string }).id);
+      expect(ids, path).toEqual(["1", "2"]);
+      expect(
+        calls.map((call) => call.url),
+        path,
+      ).toEqual([BASE + path, `${BASE}${path}&cursor=c2`]);
+    }
+  });
+});
+
+describe("transforms", () => {
+  const recipe: TransformRecipe = {
+    trim: { startSeconds: 2, endSeconds: 8 },
+    lut: { lutId: "1f2e3d4c-5b6a-4978-8a9b-0c1d2e3f4a5b", strength: 80 },
+  };
+
+  it("transformAndWait holds the transform, then follows its run until it ends", async () => {
+    const { fetch, calls } = fakeFetch(
+      json({ id: "r1", kind: "transform", status: "running", endedAt: null, reused: false }, 202),
+      json({ id: "r1", kind: "transform", status: "succeeded", endedAt: "2026-11-18T00:00:00Z" }),
+    );
+    const run = await client(fetch).assets.transformAndWait("a1", { recipe, projectId: "p2" });
+    expect(run).toMatchObject({ id: "r1", status: "succeeded", reused: false });
+    expect(calls.map((call) => `${call.method} ${call.url} ${call.headers.prefer}`)).toEqual([
+      `POST ${BASE}/assets/a1/transform wait=60`,
+      `GET ${BASE}/runs/r1 wait=60`,
+    ]);
+    expect(JSON.parse(calls[0]?.body as string)).toEqual({ recipe, projectId: "p2" });
+    expect(calls[1]?.headers["idempotency-key"]).toBeUndefined();
+  });
+
+  it("transformAndWait returns earlier work that already ended", async () => {
+    const { fetch, calls } = fakeFetch(
+      json({ id: "r0", status: "succeeded", endedAt: "2026-11-17T00:00:00Z", reused: true }),
+    );
+    const run = await client(fetch).assets.transformAndWait("a1", { recipe });
+    expect(run.reused).toBe(true);
+    expect(calls).toHaveLength(1);
+  });
+
+  it("names each recipe form by its steps", () => {
+    expectTypeOf<FrameRecipe>().not.toBeNever();
+    expectTypeOf<ImageRecipe>().not.toBeNever();
+    expectTypeOf<VideoRecipe>().not.toBeNever();
+    expectTypeOf<AudioRecipe>().not.toBeNever();
+    expectTypeOf<FrameRecipe>().toHaveProperty("extractFrame");
+    expectTypeOf<VideoRecipe>().toHaveProperty("frameRate");
+    expectTypeOf<ImageRecipe>().toHaveProperty("crop");
+    expectTypeOf<AudioRecipe>().toHaveProperty("trim");
+    expectTypeOf<
+      FrameRecipe | ImageRecipe | VideoRecipe | AudioRecipe
+    >().toEqualTypeOf<TransformRecipe>();
+    expectTypeOf<{ convert: { format: "mp3" } }>().toExtend<AudioRecipe>();
+    expectTypeOf<{ convert: { format: "png" } }>().toExtend<ImageRecipe>();
+    expectTypeOf<{ convert: { format: "mp4" } }>().toExtend<VideoRecipe>();
+    expectTypeOf<{ convert: { format: "mp3" } }>().not.toExtend<ImageRecipe>();
   });
 });

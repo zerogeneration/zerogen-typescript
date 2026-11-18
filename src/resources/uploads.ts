@@ -41,10 +41,10 @@ export type ReadyUpload = Upload & {
   /**
    * Whether ZeroGen recorded the `declaration`. It's false without one, and
    * when the project already had an identical file that can't take it: one
-   * with a declaration, one a run made, one someone else uploaded, or one the
-   * declaration's `sources` include or were made from. That asset keeps its
-   * own lineage. When the identical file takes it, `runId` stays null, and
-   * the run is the asset's `runId`.
+   * with a declaration, one a run made, one someone else uploaded when you
+   * aren't an owner or admin, or one the declaration's `sources` include or
+   * were made from. That asset keeps its own lineage. When the identical file
+   * takes it, `runId` stays null, and the run is the asset's `runId`.
    */
   declarationRecorded: boolean;
 };
@@ -129,7 +129,7 @@ export class Uploads {
     }
     if (upload.status !== "ready" || upload.assetId === null)
       throw new Error(`Upload ${upload.id} isn't ready.`);
-    const ready = { ...upload, status: upload.status, assetId: upload.assetId };
+    const ready = { ...upload, status: "ready" as const, assetId: upload.assetId };
     if (!declaration || ready.runId) return { ...ready, declarationRecorded: Boolean(declaration) };
     // No run means the project had an identical file, and the declaration went unrecorded.
     try {
@@ -168,7 +168,8 @@ function undeclarable(error: unknown): boolean {
   if (!(error instanceof ZeroGenError)) return false;
   return (
     error.code === "invalid_state" ||
-    error.code === "permission_denied" ||
+    // Someone else uploaded it. A missing scope still throws.
+    (error.code === "permission_denied" && error.reason === "not_creator") ||
     // A source is the asset itself or made from it, as when a graph saves its input unchanged.
     (error.code === "validation_failed" && error.param === "sources")
   );
