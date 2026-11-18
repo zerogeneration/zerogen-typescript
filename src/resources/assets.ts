@@ -1,24 +1,23 @@
 import type { RequestOptions, ZeroGen } from "../client.js";
-import { ZeroGenError } from "../errors.js";
+import { type AssetFile, downloadFile } from "../download.js";
 import type { PagePromise } from "../pagination.js";
 import type {
   Asset,
-  AssetChange,
   AssetDeclaration,
+  AssetDelete,
   AssetDetail,
   AssetDownload,
-  AssetFolders,
+  AssetFolder,
+  AssetFolderListQuery,
   AssetSearchQuery,
   DeclareUploadRequest,
-  Lineage,
+  LineageAsset,
+  LineageListQuery,
+  TransformAssetRequest,
+  TransformRun,
   UpdateAssetRequest,
 } from "../types.js";
-
-/** An asset's file as storage starts sending it. */
-export type AssetFile = AssetDownload & {
-  /** Storage's response: stream the file from `body`, or read it whole with `blob()`. */
-  response: Response;
-};
+import { hasEnded, MAX_WAIT_SECONDS, type WaitOptions } from "./runs.js";
 
 export interface AssetGetOptions extends RequestOptions {
   /** Also read the `workflow` declared with an upload; untrusted content. */
@@ -66,12 +65,46 @@ export class Assets {
   }
 
   /**
+   * Renames an asset, sets the organization's shared favorite, or both,
+   * together: a refused request changes neither. Resolves with the asset as
+   * `get` reads it. It needs the `library:organize` and `library:read` scopes.
+   */
+  update(
+    assetId: string,
+    body: UpdateAssetRequest,
+    options?: RequestOptions,
+  ): Promise<AssetDetail> {
+    return this.#client.request({ method: "PATCH", path: path(assetId), body }, options);
+  }
+
+  /**
+   * Moves an asset to Recently deleted: it leaves search and its folders,
+   * can't be a run input, and reads as `not_found` until `restore` puts it
+   * back. Deleting it again returns the same deletion. It needs the
+   * `library:delete` scope, which has to be granted explicitly. A test key
+   * can't delete assets.
+   */
+  delete(assetId: string, options?: RequestOptions): Promise<AssetDelete> {
+    return this.#client.request({ method: "DELETE", path: path(assetId) }, options);
+  }
+
+  /**
+   * Returns an asset from Recently deleted to its folders, and resolves with
+   * it as `get` reads it. An active asset comes back unchanged. It needs the
+   * `library:organize` and `library:read` scopes. A test key can't restore
+   * assets.
+   */
+  restore(assetId: string, options?: RequestOptions): Promise<AssetDetail> {
+    return this.#client.request({ method: "POST", path: `${path(assetId)}/restore` }, options);
+  }
+
+  /**
    * Declares how one of your uploads was made outside ZeroGen: the `tool`,
    * and optionally its `sources`, `prompt`, `workflow`, `externalRef` and
    * `occurredAt`. ZeroGen records the claim as the run that made the asset,
    * without verifying it, charging for it, or starting anything. An upload
-   * takes one declaration, and only from the user who uploaded it. Declaring
-   * `sources` also needs the `library:read` scope.
+   * takes one declaration, from the user who uploaded it or an owner or
+   * admin. Declaring `sources` also needs the `library:read` scope.
    */
   declare(
     assetId: string,
@@ -84,14 +117,78 @@ export class Assets {
     );
   }
 
-  /** What the asset was made from and what was made from it: up to 30 assets on each side. */
-  lineage(assetId: string, options?: RequestOptions): Promise<Lineage> {
-    return this.#client.request({ method: "GET", path: `${path(assetId)}/lineage` }, options);
+  /**
+   * Lists what the asset was made from, in any project, and what those were
+   * made from, nearest first. Each source's `edges` join it to the asset or to
+   * sources listed before it.
+   */
+  sources(
+    assetId: string,
+    query: LineageListQuery = {},
+    options?: RequestOptions,
+  ): PagePromise<LineageAsset> {
+    return this.#client.list({ method: "GET", path: `${path(assetId)}/sources`, query }, options);
   }
 
-  /** The folders the asset is in, up to 30, each with its path. None means it's unfiled. */
-  folders(assetId: string, options?: RequestOptions): Promise<AssetFolders> {
-    return this.#client.request({ method: "GET", path: `${path(assetId)}/folders` }, options);
+  /**
+   * Lists what was made from the asset, in its project, and what was made from
+   * those, nearest first. Each use's `edges` join it to the asset or to uses
+   * listed before it.
+   */
+  uses(
+    assetId: string,
+    query: LineageListQuery = {},
+    options?: RequestOptions,
+  ): PagePromise<LineageAsset> {
+    return this.#client.list({ method: "GET", path: `${path(assetId)}/uses`, query }, options);
+  }
+
+  /**
+   * Lists the folders the asset is in, each with its path, sorted by path. An
+   * empty list means it's unfiled.
+   */
+  folders(
+    assetId: string,
+    query: AssetFolderListQuery = {},
+    options?: RequestOptions,
+  ): PagePromise<AssetFolder> {
+    return this.#client.list({ method: "GET", path: `${path(assetId)}/folders`, query }, options);
+  }
+
+  /**
+   * Starts a transform: a free Derived copy of the asset from a `recipe`, such
+   * as a frame of a video, a trimmed clip, a LUT grade or an MP3 of its sound.
+   * Resolves with the run that makes it; its output's asset is the copy. Your
+   * earlier run of the same recipe returns with `reused` true instead. It
+   * needs the `runs:create` and `runs:read` scopes. A test key can't
+   * transform assets.
+   */
+  transform(
+    assetId: string,
+    body: TransformAssetRequest,
+    options: WaitOptions = {},
+  ): Promise<TransformRun> {
+    const { wait, ...rest } = options;
+    return this.#client.request(
+      { method: "POST", path: `${path(assetId)}/transform`, body, wait },
+      rest,
+    );
+  }
+
+  /**
+   * Starts a transform and resolves when its run ends. Check its `status`: a
+   * run that failed resolves too. Abort with `signal` to stop waiting; the
+   * run keeps running.
+   */
+  async transformAndWait(
+    assetId: string,
+    body: TransformAssetRequest,
+    options: RequestOptions = {},
+  ): Promise<TransformRun> {
+    const run = await this.transform(assetId, body, { ...options, wait: MAX_WAIT_SECONDS });
+    if (hasEnded(run)) return run;
+    const { idempotencyKey: _, ...rest } = options;
+    return { ...(await this.#client.runs.waitFor(run.id, rest)), reused: run.reused };
   }
 
   /**
@@ -111,41 +208,8 @@ export class Assets {
    * this reads a new one. Without a `timeout`, the transfer has none: abort it
    * with `signal`.
    */
-  async download(assetId: string, options: RequestOptions = {}): Promise<AssetFile> {
-    const { signal, timeout, maxRetries } = options;
-    for (let attempt = 0; ; attempt++) {
-      const link = await this.getDownload(assetId, options);
-      try {
-        const response = await this.#client.send(
-          link.url,
-          { method: "GET" },
-          { signal, maxRetries, timeout: timeout ?? null, storage: true },
-        );
-        return { ...link, response };
-      } catch (error) {
-        if (attempt > 0 || !(error instanceof ZeroGenError && error.status === 403)) throw error;
-      }
-    }
-  }
-
-  /**
-   * Renames an asset, sets the organization's shared favorite, or both. The
-   * response names what changed.
-   */
-  update(
-    projectId: string,
-    assetId: string,
-    body: UpdateAssetRequest,
-    options?: RequestOptions,
-  ): Promise<AssetChange> {
-    return this.#client.request(
-      {
-        method: "PATCH",
-        path: `/projects/${encodeURIComponent(projectId)}/assets/${encodeURIComponent(assetId)}`,
-        body,
-      },
-      options,
-    );
+  download(assetId: string, options: RequestOptions = {}): Promise<AssetFile> {
+    return downloadFile(this.#client, () => this.getDownload(assetId, options), options);
   }
 }
 

@@ -1,8 +1,8 @@
-import type { ApiError } from "./types.js";
+import type { ApiError, ErrorDetails, ErrorReason } from "./types.js";
 
 /**
- * An error response from the ZeroGen API. Branch on `code`, which is stable;
- * `message` is for people and can change.
+ * An error response from the ZeroGen API. Branch on `code` and `reason`, which
+ * are stable; `message` is for people and can change.
  */
 export class ZeroGenError extends Error {
   override readonly name = "ZeroGenError";
@@ -13,7 +13,14 @@ export class ZeroGenError extends Error {
   readonly param: string | undefined;
   /** Whether sending the same request again can succeed. */
   readonly retryable: boolean;
-  readonly details: Record<string, unknown> | undefined;
+  /** More facts about the error; each code says which it carries. */
+  readonly details: ErrorDetails | undefined;
+  /**
+   * `details.reason`: why the request was refused. A `rate_limited` or
+   * `permission_denied` error always has one, and those reasons are stable, so
+   * branch on them. Handle a reason you don't know as the error without one.
+   */
+  readonly reason: ErrorReason | undefined;
   /** The response's `Request-Id`; quote it when contacting support. */
   readonly requestId: string | undefined;
   readonly headers: Headers;
@@ -24,7 +31,8 @@ export class ZeroGenError extends Error {
     this.code = error.code;
     this.param = error.param;
     this.retryable = error.retryable;
-    this.details = error.details;
+    this.details = isRecord(error.details) ? error.details : undefined;
+    this.reason = typeof this.details?.reason === "string" ? this.details.reason : undefined;
     this.requestId = headers.get("request-id") ?? undefined;
     this.headers = headers;
   }
@@ -44,6 +52,10 @@ export class ZeroGenError extends Error {
       };
     return new ZeroGenError(response.status, error, response.headers);
   }
+}
+
+function isRecord(value: unknown): value is ErrorDetails {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /** The request got no response: the connection failed or the request timed out. */

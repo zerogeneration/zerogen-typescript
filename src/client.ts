@@ -1,8 +1,10 @@
 import { storageError, ZeroGenConnectionError, ZeroGenError } from "./errors.js";
 import { Page, type PageBody, PagePromise } from "./pagination.js";
 import { Assets } from "./resources/assets.js";
+import { Attachments } from "./resources/attachments.js";
 import { Folders } from "./resources/folders.js";
 import { Labels } from "./resources/labels.js";
+import { Luts } from "./resources/luts.js";
 import { Models } from "./resources/models.js";
 import { NamingPresets } from "./resources/naming-presets.js";
 import { Projects } from "./resources/projects.js";
@@ -38,9 +40,9 @@ export interface RequestOptions {
   /** Overrides the client's `maxRetries` for this request. */
   maxRetries?: number;
   /**
-   * `POST` and `DELETE` only. Each call sends a new random key by default and
-   * reuses it on that call's retries; pass your own to make a retry across
-   * calls safe.
+   * Writes only: `POST`, `PATCH` and `DELETE`. Each call sends a new random
+   * key by default and reuses it on that call's retries; pass your own to make
+   * a retry across calls safe.
    */
   idempotencyKey?: string;
   /** Headers to send with this request. */
@@ -71,10 +73,12 @@ export class ZeroGen {
   readonly uploads: Uploads;
   readonly projects: Projects;
   readonly assets: Assets;
+  readonly luts: Luts;
   readonly folders: Folders;
   readonly labels: Labels;
   readonly namingPresets: NamingPresets;
   readonly skills: Skills;
+  readonly attachments: Attachments;
   readonly #apiKey: string;
   readonly #fetch: (input: string, init: RequestInit) => Promise<Response>;
   readonly #headers: Record<string, string>;
@@ -96,10 +100,12 @@ export class ZeroGen {
     this.uploads = new Uploads(this);
     this.projects = new Projects(this);
     this.assets = new Assets(this);
+    this.luts = new Luts(this);
     this.folders = new Folders(this);
     this.labels = new Labels(this);
     this.namingPresets = new NamingPresets(this);
     this.skills = new Skills(this);
+    this.attachments = new Attachments(this);
   }
 
   /** The API key, the organization it belongs to, and what it can do. */
@@ -126,7 +132,7 @@ export class ZeroGen {
       Authorization: `Bearer ${this.#apiKey}`,
     };
     if (call.body !== undefined) headers["Content-Type"] = "application/json";
-    if (call.method === "POST" || call.method === "DELETE")
+    if (call.method !== "GET")
       headers["Idempotency-Key"] = options.idempotencyKey ?? crypto.randomUUID();
     if (call.wait !== undefined) headers.Prefer = `wait=${call.wait}`;
     const response = await this.send(

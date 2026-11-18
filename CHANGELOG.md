@@ -1,5 +1,72 @@
 # Changelog
 
+## 0.4.0
+
+This release follows the reshaped `/v1`, and breaks code written for 0.3.0.
+The API's old Library routes are gone, so 0.3.0's Library methods stop working
+against it.
+
+### Migrating from 0.3.0
+
+| 0.3.0                                                                                                              | 0.4.0                                                                                                                    |
+| ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `assets.update(projectId, assetId, body)`, resolving with an `AssetChange`                                         | `assets.update(assetId, body)`, resolving with the `AssetDetail`                                                         |
+| `assets.lineage(assetId)` and the `Lineage` type                                                                   | `assets.sources(assetId)` and `assets.uses(assetId)`, lists of `LineageAsset`, each with its `edges`; `moreUses` is gone |
+| `assets.folders(assetId)`, resolving with an `AssetFolders`                                                        | `assets.folders(assetId)`, a list of `AssetFolder`                                                                       |
+| `folders.create(projectId, body)`                                                                                  | `folders.create({ projectId, ...body })`                                                                                 |
+| `folders.update(projectId, folderId, body)`                                                                        | `folders.update(folderId, body)`                                                                                         |
+| `folders.delete(projectId, folderId, query)`                                                                       | `folders.delete(folderId, query)`                                                                                        |
+| `folders.restore(projectId, body)`                                                                                 | `folders.restore(body)`                                                                                                  |
+| `folders.addAssets`, `moveAssets` and `removeAssets(projectId, folderId, body)`                                    | The same methods with `(folderId, body)`                                                                                 |
+| `labels.addAssets` and `removeAssets(projectId, labelId, body)`                                                    | `labels.addAssets` and `removeAssets(labelId, body)`, for up to 100 assets in any project                                |
+| `FolderAssetsRequest` and `LabelAssetsRequest`                                                                     | `AssetBatchRequest`                                                                                                      |
+| `FolderAssetsChange` and `LabelAssetsChange`                                                                       | `AssetBatchChange`, with `updatedAssetIds` and `skippedAssetIds`                                                         |
+| `labels.update(labelId, body)` replaced all three fields                                                           | `labels.update(labelId, body)` changes only the fields you send                                                          |
+| `projects.list(options)`                                                                                           | `projects.list(query, options)`, which takes `limit` and pages                                                           |
+| `hasEnded(run)` read `status`                                                                                      | `hasEnded(run)` reads `endedAt`                                                                                          |
+| `Run["model"]` was a string                                                                                        | It's null for a transform or an upload                                                                                   |
+| Response enums were closed unions, such as a run's `status`                                                        | Each also takes any other string, so give a `switch` on one a `default`                                                  |
+| `ZeroGenError.details` was `Record<string, unknown>`                                                               | It's `ErrorDetails`, and `ZeroGenError.reason` reads `details.reason`                                                    |
+| `uploads.upload` returned `declarationRecorded: false` on any `permission_denied` from declaring an identical file | Only when someone else uploaded it (`not_creator`); a missing scope throws                                               |
+
+`folders.list(projectId)`, `namingPresets.list(projectId)` and
+`folders.ensurePath(projectId, path)` keep their signatures.
+
+### Changes
+
+- Waiting ends by the run's `endedAt`, whatever its status, in
+  `createAndWait`, `waitFor` and `hasEnded`, so a status added later can't
+  keep a wait going.
+- Response enums are typed as the values known today or any other string, and
+  keep their known values for completion. Requests stay closed.
+- `ZeroGenError.reason` is the error's `details.reason`, typed as
+  `ErrorReason`: each `rate_limited` and `permission_denied` error has one.
+  `details` is typed as `ErrorDetails`, such as `currentVersion` on a
+  `version_conflict`.
+- Every `POST`, `PATCH` and `DELETE` sends an `Idempotency-Key` that its
+  retries reuse.
+- Every list pages through the one paginator: await it for a page, or iterate
+  it for every item.
+- Runs: `runs.list` lists the organization's runs, and filters by
+  `createdBy`, `status`, `createdAfter` and `createdBefore`.
+  `runs.getOutputDownload` and `runs.downloadOutput` download an output with
+  `runs:read` alone, without sending your API key to storage. Runs have
+  `kind`, `endedAt` and `request`. `runs.quote` needs only `models:read`,
+  and returns the `inputs` to send with the create, which `create` takes.
+  `CreateRunRequest` has `continuation`.
+- Transforms: `assets.transform` and `assets.transformAndWait` make a free
+  Derived copy from a `TransformRecipe`: a `FrameRecipe`, `ImageRecipe`,
+  `VideoRecipe` or `AudioRecipe`. `luts.list` lists the LUTs a recipe can
+  name.
+- Deletes: `assets.delete` moves an asset to Recently deleted, with the
+  `library:delete` scope, and `assets.restore` puts it back.
+- Reads of one: `projects.get`, `folders.get` and `labels.get`.
+- `namingPresets.create` saves a naming preset.
+- Attachments: `attachments.list`, `get`, `create`, `revise`, `delete`,
+  `restore` and `versions` keep versioned text on projects, folders and
+  Story clips.
+- Types from the current API, including new models.
+
 ## 0.3.0
 
 This release follows the current `/v1`. Code written for 0.2.1 keeps working.

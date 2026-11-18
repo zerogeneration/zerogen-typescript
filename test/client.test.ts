@@ -1,6 +1,11 @@
 import { readFileSync } from "node:fs";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import ZeroGen, { VERSION, ZeroGenConnectionError, ZeroGenError } from "../src/index.js";
+import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
+import ZeroGen, {
+  type ErrorReason,
+  VERSION,
+  ZeroGenConnectionError,
+  ZeroGenError,
+} from "../src/index.js";
 import { apiError, fakeFetch, json } from "./fake-fetch.js";
 
 const client = (fetch: ReturnType<typeof fakeFetch>["fetch"], maxRetries = 2) =>
@@ -59,6 +64,62 @@ describe("ZeroGen", () => {
       param: "output.count",
       retryable: false,
       requestId: "req_test",
+    });
+  });
+
+  it("gives each PATCH an idempotency key, which its retries reuse", async () => {
+    const { fetch, calls } = fakeFetch(
+      apiError(503, "unavailable", { retryable: true, headers: { "Retry-After": "0" } }),
+      json({ id: "a1" }),
+    );
+    await client(fetch).assets.update("a1", { name: "Lighthouse" });
+    expect(calls.map((call) => call.method)).toEqual(["PATCH", "PATCH"]);
+    expect(calls[0]?.headers["idempotency-key"]).toMatch(/^[0-9a-f-]{36}$/u);
+    expect(calls[1]?.headers["idempotency-key"]).toBe(calls[0]?.headers["idempotency-key"]);
+  });
+
+  it("exposes an error's reason and its other details", async () => {
+    const { fetch } = fakeFetch(
+      apiError(403, "permission_denied", {
+        details: { reason: "scope_required", scope: "library:delete" },
+      }),
+      apiError(409, "version_conflict", {
+        param: "expectedVersion",
+        details: { currentVersion: 4 },
+      }),
+      apiError(429, "rate_limited", { details: { reason: "a_reason_added_later" } }),
+    );
+    const zerogen = client(fetch, 0);
+    const denied = await zerogen.assets.delete("a1").catch((caught: unknown) => caught);
+    expect(denied).toMatchObject({
+      code: "permission_denied",
+      reason: "scope_required",
+      details: { reason: "scope_required", scope: "library:delete" },
+    });
+    const conflict = await zerogen.attachments
+      .revise("t1", { expectedVersion: 3, body: "Brighter" })
+      .catch((caught: unknown) => caught);
+    expect(conflict).toMatchObject({ code: "version_conflict", reason: undefined });
+    expect((conflict as ZeroGenError).details?.currentVersion).toBe(4);
+    const limited = await zerogen.me().catch((caught: unknown) => caught);
+    expect((limited as ZeroGenError).reason).toBe("a_reason_added_later");
+    expectTypeOf<ZeroGenError["reason"]>().toEqualTypeOf<ErrorReason | undefined>();
+  });
+
+  it("reads no reason from details that don't have a string one", async () => {
+    const { fetch } = fakeFetch(
+      apiError(429, "rate_limited", { details: { reason: 7 } }),
+      json({ error: { code: "internal", message: "Oops", retryable: false, details: [1] } }, 500),
+    );
+    const zerogen = client(fetch, 0);
+    expect(await zerogen.me().catch((caught: unknown) => caught)).toMatchObject({
+      reason: undefined,
+      details: { reason: 7 },
+    });
+    expect(await zerogen.me().catch((caught: unknown) => caught)).toMatchObject({
+      code: "internal",
+      reason: undefined,
+      details: undefined,
     });
   });
 

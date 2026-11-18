@@ -103,9 +103,9 @@ export interface paths {
     put?: never;
     /**
      * Quote a run
-     * @description Validates and prices a request exactly as create would, `labelIds` included, and returns the maximum charge create would reserve. Nothing starts and nothing is held.
+     * @description Validates and prices a request exactly as create would, `labelIds` included, and returns the maximum charge create would reserve and the inputs it would use. Nothing starts and nothing is held. A quote needs `models:read`, not `runs:create`; `https` URL inputs also need `uploads:create`, because the quote imports them, and `labelIds` need `library:organize`. Send the returned `inputs` with the create so it reuses the imported assets.
      *
-     *     Needs the `runs:create` scope.
+     *     Needs the `models:read` scope.
      */
     post: operations["quoteRun"];
     delete?: never;
@@ -123,7 +123,7 @@ export interface paths {
     };
     /**
      * List runs
-     * @description The calling key owner's runs, newest first.
+     * @description Runs in your organization, whoever started them, newest first. A test key lists its sandbox's runs, and a live key never lists them.
      *
      *     Needs the `runs:read` scope.
      */
@@ -151,7 +151,7 @@ export interface paths {
     };
     /**
      * Read a run
-     * @description One run and each output's status, asset and error. Send `Prefer: wait=N` to hold the response until it ends. Reads never start or repeat work.
+     * @description Any run in your organization, and each output's status, asset and error. `endedAt` is set once the run ends, whatever its status. Send `Prefer: wait=N` to hold the response until it ends. Reads never start or repeat work.
      *
      *     Needs the `runs:read` scope.
      */
@@ -175,11 +175,33 @@ export interface paths {
     put?: never;
     /**
      * Cancel a run
-     * @description Stops the run's unfinished outputs. Outputs a vendor already finished are kept and charged; cancelling a finished run returns it unchanged. Takes no body.
+     * @description Stops the run's unfinished outputs. You can cancel the runs you started; an organization owner or admin can cancel any run. Outputs a vendor already finished are kept and charged; cancelling a finished run returns it unchanged. An output a vendor has already started cannot be stopped: the run stays `running`, and that output is delivered and charged when it finishes. Takes no body.
      *
      *     Needs the `runs:cancel` scope.
      */
     post: operations["cancelRun"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/runs/{id}/outputs/{assetId}/download": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Download a run output
+     * @description A signed URL for one succeeded output's original file, by the run's ID and the output's asset ID, as `GET /assets/{assetId}/download` returns it. It needs only `runs:read`. The URL starts a download until `expiresAt`, 5 minutes after the response, and needs no API key: send no `Authorization` header with it. Anyone holding it can download the file. Read this endpoint again for a new URL.
+     *
+     *     Needs the `runs:read` scope.
+     */
+    get: operations["getRunOutputDownload"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -261,11 +283,33 @@ export interface paths {
     };
     /**
      * List projects
-     * @description The organization's projects, in one page, so `nextCursor` is always null. A test key lists only its API sandbox.
+     * @description The organization's projects, the default project first, then newest first. A test key lists only its API sandbox.
      *
      *     Needs the `library:read` scope.
      */
     get: operations["listProjects"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/projects/{projectId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Read a project
+     * @description One project, as the list shows it. A test key reads only its API sandbox.
+     *
+     *     Needs the `library:read` scope.
+     */
+    get: operations["getProject"];
     put?: never;
     post?: never;
     delete?: never;
@@ -312,6 +356,40 @@ export interface paths {
     get: operations["getAsset"];
     put?: never;
     post?: never;
+    /**
+     * Delete an asset
+     * @description Moves an asset to Recently deleted, where it leaves search, its folders and run inputs until restored; reading it returns 404. Restoring puts it back in its folders. Deleting it again returns the same deletion. Requires the explicitly granted library:delete scope; test keys can't delete assets. Takes no body.
+     *
+     *     Needs the `library:delete` scope.
+     */
+    delete: operations["deleteAsset"];
+    options?: never;
+    head?: never;
+    /**
+     * Update an asset
+     * @description Renames an asset, sets the organization's shared favorite, or both, together: a refused request changes neither. Each field is set to the value sent, so a retry gives the same result. The response is the asset as `GET` reads it, with preview URLs that load for 5 minutes.
+     *
+     *     Needs the `library:organize` and `library:read` scopes.
+     */
+    patch: operations["updateAsset"];
+    trace?: never;
+  };
+  "/assets/{assetId}/restore": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Restore an asset
+     * @description Returns an asset from Recently deleted to its folders, and reads it as `GET` does, with preview URLs that load for 5 minutes. An active asset comes back unchanged. Test keys can't restore assets. Takes no body.
+     *
+     *     Needs the `library:organize` and `library:read` scopes.
+     */
+    post: operations["restoreAsset"];
     delete?: never;
     options?: never;
     head?: never;
@@ -340,7 +418,29 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/assets/{assetId}/lineage": {
+  "/assets/{assetId}/transform": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Transform an asset
+     * @description Makes a free Derived copy of an asset from a recipe: a frame from a video; a cropped, resized or converted image; a trimmed, silent, cropped, despilled, LUT-graded, resized or converted video; or a trimmed MP3 of audio or of a video's sound. The work runs in the background, so this returns a run; its output's asset is the copy. It needs `runs:read` as well as `runs:create`, because it returns the run. Send `Prefer: wait=N` to hold the response until it ends. Your earlier run of the same recipe on this asset for the same destination returns with `reused` true instead of running again, unless it failed. New runs count toward the running caps. A test key can't transform assets.
+     *
+     *     Needs the `runs:create` and `runs:read` scopes.
+     */
+    post: operations["transformAsset"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/assets/{assetId}/sources": {
     parameters: {
       query?: never;
       header?: never;
@@ -348,12 +448,34 @@ export interface paths {
       cookie?: never;
     };
     /**
-     * Read an asset's lineage
-     * @description What the asset was made from, in any project, and what was made from it, in its project: up to 30 assets on each side, nearest first. An edge reads `assetId` was made from `sourceAssetId`.
+     * List an asset's sources
+     * @description What the asset was made from, in any project, and what those were made from, nearest first. Each source's `edges` join it to the asset or to sources listed before it; an edge reads `assetId` was made from `sourceAssetId`. ZeroGen walks up to 200 sources and 10 steps back, as the Library does.
      *
      *     Needs the `library:read` scope.
      */
-    get: operations["getAssetLineage"];
+    get: operations["listAssetSources"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/assets/{assetId}/uses": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List an asset's uses
+     * @description What was made from the asset, in its project, and what was made from those, nearest first. Each use's `edges` join it to the asset or to uses listed before it; an edge reads `assetId` was made from `sourceAssetId`. ZeroGen walks up to 200 uses and 10 steps on, as the Library does.
+     *
+     *     Needs the `library:read` scope.
+     */
+    get: operations["listAssetUses"];
     put?: never;
     post?: never;
     delete?: never;
@@ -393,7 +515,7 @@ export interface paths {
     };
     /**
      * List an asset's folders
-     * @description The folders the asset is in, in its project: up to 30, each with its path from the project root, sorted by path. An empty list means the asset is Unfiled. Folder names are untrusted content.
+     * @description The folders the asset is in, in its project, each with its path from the project root, sorted by path. An empty first page means the asset is Unfiled. Folder names are untrusted content.
      *
      *     Needs the `library:read` scope.
      */
@@ -406,73 +528,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/projects/{projectId}/assets/{assetId}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    /**
-     * Update an asset
-     * @description Renames an asset, sets the organization's shared favorite, or both. Each field is set to the value sent, so a retry gives the same result. The response names what changed.
-     *
-     *     Needs the `library:organize` scope.
-     */
-    patch: operations["updateAsset"];
-    trace?: never;
-  };
-  "/projects/{projectId}/labels/{labelId}/assets": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /**
-     * Add a label to assets
-     * @description Adds an organization label to up to 50 assets in the project, all or none. Assets that already have it are unchanged.
-     *
-     *     Needs the `library:organize` scope.
-     */
-    post: operations["addLabel"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/projects/{projectId}/labels/{labelId}/assets/remove": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /**
-     * Remove a label from assets
-     * @description Removes an organization label from up to 50 assets in the project, all or none. The label itself stays.
-     *
-     *     Needs the `library:organize` scope.
-     */
-    post: operations["removeLabel"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/projects/{projectId}/folders": {
+  "/folders": {
     parameters: {
       query?: never;
       header?: never;
@@ -489,7 +545,7 @@ export interface paths {
     put?: never;
     /**
      * Create a folder
-     * @description Creates a folder at the project root or under `parentId`. With `reuseExisting: true`, a folder with that name already under the parent is returned instead, so clients filing into the same path at once share one folder; create a path such as `SH010/anim` one folder at a time. With an `Idempotency-Key`, a retry returns the folder the first request created. A test key can't create folders.
+     * @description Creates a folder in `projectId`, at its root or under `parentId`. With `reuseExisting: true`, a folder with that name already under the parent is returned instead, so clients filing into the same path at once share one folder; create a path such as `SH010/anim` one folder at a time. With an `Idempotency-Key`, a retry returns the folder the first request created. A test key can't create folders.
      *
      *     Needs the `library:organize` scope.
      */
@@ -500,14 +556,20 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/projects/{projectId}/folders/{folderId}": {
+  "/folders/{folderId}": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    get?: never;
+    /**
+     * Read a folder
+     * @description One folder by its ID alone, in whichever of the organization's projects holds it.
+     *
+     *     Needs the `library:read` scope.
+     */
+    get: operations["getFolder"];
     put?: never;
     post?: never;
     /**
@@ -521,14 +583,14 @@ export interface paths {
     head?: never;
     /**
      * Update a folder
-     * @description Renames a folder, moves it under another parent (or to the project root with `parentId: null`), or both. Its assets and subfolders keep their IDs. The response is the folder as it ends.
+     * @description Renames a folder, moves it under another parent in its project (or to the project root with `parentId: null`), or both, together: a refused move leaves the name unchanged too. Its assets and subfolders keep their IDs. The response is the folder as it ends.
      *
      *     Needs the `library:organize` scope.
      */
     patch: operations["updateFolder"];
     trace?: never;
   };
-  "/projects/{projectId}/folders/restore": {
+  "/folders/restore": {
     parameters: {
       query?: never;
       header?: never;
@@ -539,7 +601,7 @@ export interface paths {
     put?: never;
     /**
      * Undo a folder deletion
-     * @description Undoes your own folder deletion using its eventId within one hour. Restores folders, placements and assets still trashed by that deletion. Requires library:organize. Test keys cannot restore folders.
+     * @description Undoes your own folder deletion by its eventId alone, within one hour. Restores folders, placements and assets still trashed by that deletion. Requires library:organize. Test keys cannot restore folders.
      *
      *     Needs the `library:organize` scope.
      */
@@ -550,7 +612,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/projects/{projectId}/folders/{folderId}/assets": {
+  "/folders/{folderId}/assets": {
     parameters: {
       query?: never;
       header?: never;
@@ -561,7 +623,7 @@ export interface paths {
     put?: never;
     /**
      * Add assets to a folder
-     * @description Adds up to 100 assets to the folder, keeping their other folders. The response lists the assets changed and those skipped.
+     * @description Adds up to 100 assets in the folder's project to the folder, keeping their other folders. The response lists the assets changed and those skipped.
      *
      *     Needs the `library:organize` scope.
      */
@@ -572,7 +634,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/projects/{projectId}/folders/{folderId}/assets/move": {
+  "/folders/{folderId}/assets/move": {
     parameters: {
       query?: never;
       header?: never;
@@ -583,7 +645,7 @@ export interface paths {
     put?: never;
     /**
      * Move assets to a folder
-     * @description Moves up to 100 assets out of `fromFolderId` and into this folder; their other folders keep them. An asset that isn't in `fromFolderId` is still added, but a `fromFolderId` that isn't in the project is not found. The response lists the assets changed and those skipped.
+     * @description Moves up to 100 assets out of `fromFolderId` and into this folder; their other folders keep them. An asset that isn't in `fromFolderId` is still added, but a `fromFolderId` that isn't in the folder's project is not found. The response lists the assets changed and those skipped.
      *
      *     Needs the `library:organize` scope.
      */
@@ -594,7 +656,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/projects/{projectId}/folders/{folderId}/assets/remove": {
+  "/folders/{folderId}/assets/remove": {
     parameters: {
       query?: never;
       header?: never;
@@ -605,7 +667,7 @@ export interface paths {
     put?: never;
     /**
      * Remove assets from a folder
-     * @description Takes up to 100 assets out of the folder. They stay in the Library and in their other folders; an asset in no folder is unfiled.
+     * @description Takes up to 100 assets out of the folder. They stay in the Library and in their other folders; an asset in no folder is unfiled. The response lists the assets changed and those skipped.
      *
      *     Needs the `library:organize` scope.
      */
@@ -616,7 +678,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/projects/{projectId}/naming-presets": {
+  "/naming-presets": {
     parameters: {
       query?: never;
       header?: never;
@@ -630,6 +692,34 @@ export interface paths {
      *     Needs the `library:read` scope.
      */
     get: operations["listNamingPresets"];
+    put?: never;
+    /**
+     * Create a naming preset
+     * @description Saves a preset for everyone in `projectId`; owners and admins only. Fields run in order, joined by `delimiter`. A `text` field takes a value per run. A `version` field counts up automatically, shared across the folder, and belongs last. `shot` and `take` are counters, so they refuse text. With an `Idempotency-Key`, a retry returns the preset the first request created. A test key can't create presets.
+     *
+     *     Needs the `library:organize` scope.
+     */
+    post: operations["createNamingPreset"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/luts": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List LUTs
+     * @description The organization's LUTs, newest first, to name as `lut.lutId` in a transform's recipe. People add and remove LUTs in ZeroGen. A test key sees none.
+     *
+     *     Needs the `library:read` scope.
+     */
+    get: operations["listLuts"];
     put?: never;
     post?: never;
     delete?: never;
@@ -673,19 +763,25 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    get?: never;
     /**
-     * Update a label
-     * @description Replaces a label's name, description and color, so send all three; owners and admins only. Sending the same definition again changes nothing.
+     * Read a label
+     * @description One organization label. An archived label reads only for owners and admins, as the list shows it.
      *
-     *     Needs the `library:organize` scope.
+     *     Needs the `library:read` scope.
      */
-    put: operations["updateLabel"];
+    get: operations["getLabel"];
+    put?: never;
     post?: never;
     delete?: never;
     options?: never;
     head?: never;
-    patch?: never;
+    /**
+     * Update a label
+     * @description Changes a label's name, description or color, keeping the fields you leave out; owners and admins only. Sending the same values again changes nothing.
+     *
+     *     Needs the `library:organize` scope.
+     */
+    patch: operations["updateLabel"];
     trace?: never;
   };
   "/labels/{labelId}/archive": {
@@ -726,6 +822,156 @@ export interface paths {
      *     Needs the `library:organize` scope.
      */
     post: operations["restoreLabel"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/labels/{labelId}/assets": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Add a label to assets
+     * @description Adds an organization label to up to 100 assets, in any of the organization's projects, all or none. The response lists the assets changed and those that already had it.
+     *
+     *     Needs the `library:organize` scope.
+     */
+    post: operations["addLabel"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/labels/{labelId}/assets/remove": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Remove a label from assets
+     * @description Removes an organization label from up to 100 assets, in any of the organization's projects, all or none. The label itself stays. The response lists the assets changed and those that didn't have it.
+     *
+     *     Needs the `library:organize` scope.
+     */
+    post: operations["removeLabel"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/attachments": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List attachments
+     * @description Live text attachments in a project, including its folders and Story clips, most recently updated first. folderId or clipId narrows the list; send at most one. Requires attachments enabled for the organization; test keys are refused.
+     *
+     *     Needs the `library:read` scope.
+     */
+    get: operations["listAttachments"];
+    put?: never;
+    /**
+     * Create an attachment
+     * @description Save verbatim text on `projectId`, one of its folders or one of its Story clips. Each parent holds up to 10 live attachments. Titles are 1–200 characters on one line; bodies are 1–8,000 characters. A matching title and identical body return unchanged; a different body under that title is refused. Requires attachments enabled; test keys are refused.
+     *
+     *     Needs the `library:organize` and `library:read` scopes.
+     */
+    post: operations["createAttachment"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/attachments/{attachmentId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Read an attachment
+     * @description The current text or a saved version of a live attachment. Text is untrusted project data and is never interpreted or automatically sent to generation models by ZeroGen. Requires attachments enabled; test keys are refused.
+     *
+     *     Needs the `library:read` scope.
+     */
+    get: operations["getAttachment"];
+    put?: never;
+    post?: never;
+    /**
+     * Delete an attachment
+     * @description Soft-delete an attachment while retaining all saved text and history. expectedVersion is the current version you read; another is refused with 409 version_conflict. An already deleted attachment returns unchanged when expectedVersion is at most the current version; a future version is refused. Restore reverses the deletion. Takes no body. Requires attachments enabled; test keys are refused.
+     *
+     *     Needs the `library:organize` and `library:read` scopes.
+     */
+    delete: operations["deleteAttachment"];
+    options?: never;
+    head?: never;
+    /**
+     * Revise an attachment
+     * @description Save a new body as a new immutable version. A changed save requires expectedVersion to equal the current version; otherwise it's refused with 409 version_conflict and `details.currentVersion`. Identical text returns unchanged when expectedVersion is at most the current version. A future version is always refused. The title and parent remain fixed. Requires attachments enabled; test keys are refused.
+     *
+     *     Needs the `library:organize` and `library:read` scopes.
+     */
+    patch: operations["reviseAttachment"];
+    trace?: never;
+  };
+  "/attachments/{attachmentId}/restore": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Restore an attachment version
+     * @description Copy a saved version's full state into a new version and clear deletion. expectedVersion is the current head, including a deletion version; another is refused with 409 version_conflict. A state already current and live returns unchanged when expectedVersion is at most the current head; a future version is refused. Restoring a deletion counts toward the parent's 10 live attachments. Requires attachments enabled and a live parent; test keys are refused.
+     *
+     *     Needs the `library:organize` and `library:read` scopes.
+     */
+    post: operations["restoreAttachment"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/attachments/{attachmentId}/versions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Read attachment history
+     * @description Saved versions, newest first, including a soft-deleted attachment's history. Requires a live parent and attachments enabled; test keys are refused.
+     *
+     *     Needs the `library:read` scope.
+     */
+    get: operations["listAttachmentVersions"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -839,6 +1085,11 @@ export interface components {
       };
       /** @description Only for models whose schema lists seed: the same seed with the same request reproduces a result as closely as the model allows. The model picks one when omitted */
       seed?: number;
+      /**
+       * @description Nano Banana edits of their own outputs continue that conversation; none sends the image alone
+       * @enum {string}
+       */
+      continuation?: "auto" | "none";
       /** @description Refuse to start when the quote exceeds this amount */
       maxCostMicroUsd?: number;
       /** @description Test keys only: rehearse each output's outcome; live keys are refused when it is present */
@@ -1039,30 +1290,345 @@ export interface components {
       /** @description The organization's shared favorite */
       favorite?: boolean;
     };
+    AssetBatchRequest: {
+      /** @description Up to 100 assets */
+      assetIds: string[];
+    };
     RestoreFolderRequest: {
       eventId: string;
     };
     CreateFolderRequest: {
+      /** @description The project to make the folder in */
+      projectId: string;
       name: string;
-      /** @description The parent folder; omit or null for the project root */
+      /** @description The parent folder, in the same project; omit or null for the project root */
       parentId?: string | null;
       /** @description When true, return the folder with this name that's already under the parent, with 200, instead of making another. Names match after Unicode NFC, case-sensitively; the oldest wins when several do */
       reuseExisting?: boolean;
     };
     UpdateFolderRequest: {
       name?: string;
-      /** @description The new parent folder, or null to move it to the project root */
+      /** @description The new parent folder, in the same project, or null for the project root */
       parentId?: string | null;
-    };
-    FolderAssetsRequest: {
-      /** @description Up to 100 assets */
-      assetIds: string[];
     };
     MoveAssetsRequest: {
       /** @description Up to 100 assets */
       assetIds: string[];
       /** @description The folder to take the assets out of; their other folders keep them */
       fromFolderId: string;
+    };
+    CreateNamingPresetRequest: {
+      projectId: string;
+      name: string;
+      definition: {
+        delimiter: string;
+        fields: {
+          id: string;
+          /** @enum {string} */
+          kind: "shot" | "take" | "artist" | "date" | "version" | "text" | "folder";
+          label: string;
+          prefix: string;
+          padding: number;
+          step: number;
+          /** @enum {string} */
+          sequence: "number" | "letters";
+          /** @enum {string} */
+          artistFormat: "initials" | "compact" | "hyphen" | "underscore" | "custom";
+          /** @enum {string} */
+          artistNameStyle?: "full" | "initials";
+          /** @enum {string} */
+          artistCase?: "preserve" | "lower" | "upper" | "title";
+          artistSeparator?: string;
+          dateFormat: string;
+          defaultValue: string;
+          folderRemoveSpaces?: boolean;
+        }[];
+      };
+    };
+    TransformAssetRequest: {
+      recipe:
+        | {
+            extractFrame: {
+              /** @description Where to take the frame, in seconds from the start of the video */
+              timeSeconds: number;
+            };
+            /**
+             * @description Turn the picture clockwise by this many degrees
+             * @enum {number}
+             */
+            rotate?: 90 | 180 | 270;
+            /**
+             * @description Mirror the picture after any rotate: horizontal swaps left and right
+             * @enum {string}
+             */
+            flip?: "horizontal" | "vertical";
+            /**
+             * @description What the footage is, which its metadata can't tell, so ask rather than guess. With it, adjust's exposure, temperature and tint run before any LUT on its curve and gamut, which can recover what the LUT would clip; without it, after
+             * @enum {string}
+             */
+            inputColor?:
+              | "rec709"
+              | "slog3-sgamut3cine"
+              | "slog3-sgamut3"
+              | "apple-log"
+              | "logc3"
+              | "logc4"
+              | "vlog"
+              | "clog2"
+              | "clog3"
+              | "bmd-film";
+            /** @description Remove screen-colored spill from a green- or blue-screen shot, before any LUT. It changes every pixel of that color, so use it only on screen footage. The screen stays, turned neutral; this does not key it out */
+            despill?: {
+              /**
+               * @description The screen color to remove from the subject
+               * @enum {string}
+               */
+              screen: "green" | "blue";
+            };
+            /** @description Apply a LUT. Use one whose inputColor matches the footage: a log LUT on Rec.709 footage looks wrong, and footage metadata can't tell. A video copy is tagged Rec.709 */
+            lut?: {
+              /**
+               * Format: uuid
+               * @description A LUT from this organization
+               */
+              lutId: string;
+              /** @description How much of the LUT to apply, as a percent; default 100 */
+              strength?: number;
+            };
+            /** @description Basic color correction, after any LUT, so it trims what the LUT gave. Each is a whole number from -100 to 100; 0 changes nothing */
+            adjust?: {
+              /** @description -100 is two stops darker, 100 two stops brighter; highlights can clip */
+              exposure?: number;
+              /** @description Moves the midtones; black and white stay where they are */
+              brightness?: number;
+              /** @description -100 halves the contrast around mid gray, 100 doubles it */
+              contrast?: number;
+              /** @description -100 is black and white, 100 doubles the saturation */
+              saturation?: number;
+              /** @description Below 0 is cooler, above 0 warmer */
+              temperature?: number;
+              /** @description Below 0 is greener, above 0 more magenta */
+              tint?: number;
+            };
+          }
+        | {
+            /**
+             * @description Turn the picture clockwise by this many degrees
+             * @enum {number}
+             */
+            rotate?: 90 | 180 | 270;
+            /**
+             * @description Mirror the picture after any rotate: horizontal swaps left and right
+             * @enum {string}
+             */
+            flip?: "horizontal" | "vertical";
+            /** @description Keep this area of the upright image, turned and flipped as asked, within its width and height */
+            crop?: {
+              /** @description Pixels from the picture's left edge to the area's */
+              x: number;
+              /** @description Pixels from the picture's top edge to the area's */
+              y: number;
+              /** @description The area's width, in pixels */
+              width: number;
+              /** @description The area's height, in pixels */
+              height: number;
+            };
+            /**
+             * @description What the footage is, which its metadata can't tell, so ask rather than guess. With it, adjust's exposure, temperature and tint run before any LUT on its curve and gamut, which can recover what the LUT would clip; without it, after
+             * @enum {string}
+             */
+            inputColor?:
+              | "rec709"
+              | "slog3-sgamut3cine"
+              | "slog3-sgamut3"
+              | "apple-log"
+              | "logc3"
+              | "logc4"
+              | "vlog"
+              | "clog2"
+              | "clog3"
+              | "bmd-film";
+            /** @description Remove screen-colored spill from a green- or blue-screen shot, before any LUT. It changes every pixel of that color, so use it only on screen footage. The screen stays, turned neutral; this does not key it out */
+            despill?: {
+              /**
+               * @description The screen color to remove from the subject
+               * @enum {string}
+               */
+              screen: "green" | "blue";
+            };
+            /** @description Apply a LUT. Use one whose inputColor matches the footage: a log LUT on Rec.709 footage looks wrong, and footage metadata can't tell. A video copy is tagged Rec.709 */
+            lut?: {
+              /**
+               * Format: uuid
+               * @description A LUT from this organization
+               */
+              lutId: string;
+              /** @description How much of the LUT to apply, as a percent; default 100 */
+              strength?: number;
+            };
+            /** @description Basic color correction, after any LUT, so it trims what the LUT gave. Each is a whole number from -100 to 100; 0 changes nothing */
+            adjust?: {
+              /** @description -100 is two stops darker, 100 two stops brighter; highlights can clip */
+              exposure?: number;
+              /** @description Moves the midtones; black and white stay where they are */
+              brightness?: number;
+              /** @description -100 halves the contrast around mid gray, 100 doubles it */
+              contrast?: number;
+              /** @description -100 is black and white, 100 doubles the saturation */
+              saturation?: number;
+              /** @description Below 0 is cooler, above 0 warmer */
+              temperature?: number;
+              /** @description Below 0 is greener, above 0 more magenta */
+              tint?: number;
+            };
+            resize?: {
+              /** @description Scale down proportionally so the longest edge is at most this many pixels; never enlarges */
+              maxEdge: number;
+            };
+            convert?: {
+              /** @enum {string} */
+              format: "png" | "jpeg" | "webp";
+              /** @description jpeg and webp only; default 90. An image already in the asked format that needs no resize is copied unchanged, so quality applies only when it is re-encoded */
+              quality?: number;
+              /** @description jpeg only: the color that replaces transparency, such as #ffffff */
+              background?: string;
+            };
+          }
+        | {
+            trim?: {
+              /** @description Where the copy starts, in seconds */
+              startSeconds: number;
+              /** @description Where it ends, in seconds; at most 30 after startSeconds and within the video */
+              endSeconds: number;
+            };
+            frameRate?: {
+              /** @description The copy's frames per second. 23.976, 29.97 or 59.94 footage made 24, 30 or 60 keeps every frame and runs 0.1% shorter, its sound sped up to match; any other change repeats or drops frames and keeps the length */
+              fps: number;
+            };
+            /**
+             * @description Leave the audio out of the copy; without it, the copy keeps the first audio track
+             * @constant
+             */
+            removeAudio?: true;
+            /**
+             * @description Play the clip backwards, sound too. It holds every frame in memory, so a long or large clip is refused
+             * @constant
+             */
+            reverse?: true;
+            /** @description Play this many times as fast: 2 halves the length, 0.5 doubles it. The sound keeps its pitch, and the frame rate stays the source's unless frameRate sets it. Rounds to the hundredth */
+            speed?: number;
+            lengthen?: {
+              /** @description The copy's length, longer than the clip after trim and speed */
+              toSeconds: number;
+              /**
+               * @description hold: freeze the last frame, with silence. loop: play the clip again from its start, sound too
+               * @enum {string}
+               */
+              by: "hold" | "loop";
+            };
+            /**
+             * @description Turn the picture clockwise by this many degrees
+             * @enum {number}
+             */
+            rotate?: 90 | 180 | 270;
+            /**
+             * @description Mirror the picture after any rotate: horizontal swaps left and right
+             * @enum {string}
+             */
+            flip?: "horizontal" | "vertical";
+            /** @description Keep this area of the upright picture, turned and flipped as asked, within its width and height. Each number rounds down to an even one, which video needs */
+            crop?: {
+              /** @description Pixels from the picture's left edge to the area's */
+              x: number;
+              /** @description Pixels from the picture's top edge to the area's */
+              y: number;
+              /** @description The area's width, in pixels */
+              width: number;
+              /** @description The area's height, in pixels */
+              height: number;
+            };
+            /**
+             * @description What the footage is, which its metadata can't tell, so ask rather than guess. With it, adjust's exposure, temperature and tint run before any LUT on its curve and gamut, which can recover what the LUT would clip; without it, after
+             * @enum {string}
+             */
+            inputColor?:
+              | "rec709"
+              | "slog3-sgamut3cine"
+              | "slog3-sgamut3"
+              | "apple-log"
+              | "logc3"
+              | "logc4"
+              | "vlog"
+              | "clog2"
+              | "clog3"
+              | "bmd-film";
+            /** @description Remove screen-colored spill from a green- or blue-screen shot, before any LUT. It changes every pixel of that color, so use it only on screen footage. The screen stays, turned neutral; this does not key it out */
+            despill?: {
+              /**
+               * @description The screen color to remove from the subject
+               * @enum {string}
+               */
+              screen: "green" | "blue";
+            };
+            /** @description Apply a LUT. Use one whose inputColor matches the footage: a log LUT on Rec.709 footage looks wrong, and footage metadata can't tell. A video copy is tagged Rec.709 */
+            lut?: {
+              /**
+               * Format: uuid
+               * @description A LUT from this organization
+               */
+              lutId: string;
+              /** @description How much of the LUT to apply, as a percent; default 100 */
+              strength?: number;
+            };
+            /** @description Basic color correction, after any LUT, so it trims what the LUT gave. Each is a whole number from -100 to 100; 0 changes nothing */
+            adjust?: {
+              /** @description -100 is two stops darker, 100 two stops brighter; highlights can clip */
+              exposure?: number;
+              /** @description Moves the midtones; black and white stay where they are */
+              brightness?: number;
+              /** @description -100 halves the contrast around mid gray, 100 doubles it */
+              contrast?: number;
+              /** @description -100 is black and white, 100 doubles the saturation */
+              saturation?: number;
+              /** @description Below 0 is cooler, above 0 warmer */
+              temperature?: number;
+              /** @description Below 0 is greener, above 0 more magenta */
+              tint?: number;
+            };
+            resize?: {
+              /** @description Scale down proportionally so the longest edge is at most this many pixels; never enlarges */
+              maxEdge: number;
+            };
+            convert?: {
+              /**
+               * @description mp4: H.264 8-bit 4:2:0, which every model and browser takes. mov: HEVC that keeps the source's 10-bit depth, 4:4:4 chroma, HDR and frame rate, for editing rather than as a model reference
+               * @enum {string}
+               */
+              format: "mp4" | "mov";
+              /** @description Keep the copy at most this many bytes, as a model's file limit asks: the bitrate is set from its length, and a copy that can't fit fails */
+              maxBytes?: number;
+            };
+          }
+        | {
+            trim?: {
+              /** @description Where the copy starts, in seconds */
+              startSeconds: number;
+              /** @description Where it ends, in seconds; at most 600 after startSeconds and within the source */
+              endSeconds: number;
+            };
+            /** @description The output; an MP3 when left out. On a video, give it to ask for audio */
+            convert?: {
+              /**
+               * @description mp3: 192 kbit/s, mono or stereo as the source is, which every model that takes audio accepts. wav, aiff and flac: lossless, at the source's sample rate and channels, 24-bit from a source deeper than 16, cut on the exact sample; for editing rather than as a model reference
+               * @enum {string}
+               */
+              format: "mp3" | "wav" | "aiff" | "flac";
+            };
+          };
+      /** @description The project the copy goes into; the source asset's project when omitted */
+      projectId?: string;
+      /** @description A folder in that project to also add the copy to; null or omitted for Unfiled */
+      folderId?: string | null;
     };
     CreateLabelRequest: {
       name: string;
@@ -1086,13 +1652,14 @@ export interface components {
         | "#ec4899";
     };
     UpdateLabelRequest: {
-      name: string;
-      description: string;
+      name?: string;
+      /** @description null or an empty string clears it */
+      description?: string | null;
       /**
        * @description One of the preset colors: Red #ef4444, Orange #f97316, Amber #f59e0b, Yellow #eab308, Lime #84cc16, Green #22c55e, Teal #14b8a6, Cyan #06b6d4, Blue #3b82f6, Indigo #6366f1, Violet #8b5cf6, Pink #ec4899.
        * @enum {string}
        */
-      color:
+      color?:
         | "#ef4444"
         | "#f97316"
         | "#f59e0b"
@@ -1106,19 +1673,32 @@ export interface components {
         | "#8b5cf6"
         | "#ec4899";
     };
-    LabelAssetsRequest: {
-      /** @description Up to 50 assets */
-      assetIds: string[];
+    CreateAttachmentRequest: {
+      /** Format: uuid */
+      projectId: string;
+      /** Format: uuid */
+      folderId?: string;
+      /** Format: uuid */
+      clipId?: string;
+      /** @description Verbatim title: 1–200 characters on one line, without surrounding whitespace. */
+      title: string;
+      /** @description Verbatim attachment text: 1–8,000 Unicode characters. */
+      body: string;
+    };
+    ReviseAttachmentRequest: {
+      expectedVersion: number;
+      body: string;
+    };
+    RestoreAttachmentRequest: {
+      version: number;
+      expectedVersion: number;
     };
     Me: {
       apiKey: {
         id: string;
         name: string;
-        /**
-         * @description test keys run on placeholder providers, charge nothing and stay in the sandbox
-         * @enum {string}
-         */
-        mode: "live" | "test";
+        /** @description test keys run on placeholder providers, charge nothing and stay in the sandbox */
+        mode: ("live" | "test") | (string & {});
         /** @description What this key can do now: its scopes that its owner's role still allows */
         scopes: string[];
         /** Format: date-time */
@@ -1140,8 +1720,7 @@ export interface components {
       } | null;
     };
     Balance: {
-      /** @constant */
-      currency: "USD";
+      currency: "USD" | (string & {});
       balanceMicroUsd: number;
       /** @description Reserved for runs that have not settled; a hold is not a charge */
       heldMicroUsd: number | null;
@@ -1166,33 +1745,36 @@ export interface components {
     Model: {
       id: string;
       name: string;
-      /** @enum {string} */
-      capability: "image" | "video" | "speech";
-      /** @enum {string} */
+      capability: ("image" | "video" | "speech") | (string & {});
       operation:
-        | "generate"
-        | "edit"
-        | "inpaint"
-        | "remix"
-        | "text-to-vector"
-        | "text-to-video"
-        | "image-to-video"
-        | "first-last-frame-to-video"
-        | "keyframes-to-video"
-        | "reference-to-video"
-        | "audio-to-video"
-        | "video-to-video"
-        | "extend-video"
-        | "motion-control"
-        | "lip-sync"
-        | "clean-plate"
-        | "render-to-real"
-        | "hdr"
-        | "outpaint"
-        | "reference-video-to-video"
-        | "text-to-speech";
-      /** @enum {string} */
-      status: "active" | "deprecated";
+        | (
+            | "generate"
+            | "edit"
+            | "inpaint"
+            | "remix"
+            | "text-to-vector"
+            | "image-to-matte"
+            | "text-to-video"
+            | "image-to-video"
+            | "first-last-frame-to-video"
+            | "keyframes-to-video"
+            | "reference-to-video"
+            | "audio-to-video"
+            | "video-to-video"
+            | "video-to-matte"
+            | "extend-video"
+            | "upscale-video"
+            | "motion-control"
+            | "lip-sync"
+            | "clean-plate"
+            | "render-to-real"
+            | "hdr"
+            | "outpaint"
+            | "reference-video-to-video"
+            | "text-to-speech"
+          )
+        | (string & {});
+      status: ("active" | "deprecated") | (string & {});
       /** @description A deprecated model refuses new requests from this time */
       sunsetAt: string | null;
     };
@@ -1204,33 +1786,36 @@ export interface components {
     ModelDetail: {
       id: string;
       name: string;
-      /** @enum {string} */
-      capability: "image" | "video" | "speech";
-      /** @enum {string} */
+      capability: ("image" | "video" | "speech") | (string & {});
       operation:
-        | "generate"
-        | "edit"
-        | "inpaint"
-        | "remix"
-        | "text-to-vector"
-        | "text-to-video"
-        | "image-to-video"
-        | "first-last-frame-to-video"
-        | "keyframes-to-video"
-        | "reference-to-video"
-        | "audio-to-video"
-        | "video-to-video"
-        | "extend-video"
-        | "motion-control"
-        | "lip-sync"
-        | "clean-plate"
-        | "render-to-real"
-        | "hdr"
-        | "outpaint"
-        | "reference-video-to-video"
-        | "text-to-speech";
-      /** @enum {string} */
-      status: "active" | "deprecated";
+        | (
+            | "generate"
+            | "edit"
+            | "inpaint"
+            | "remix"
+            | "text-to-vector"
+            | "image-to-matte"
+            | "text-to-video"
+            | "image-to-video"
+            | "first-last-frame-to-video"
+            | "keyframes-to-video"
+            | "reference-to-video"
+            | "audio-to-video"
+            | "video-to-video"
+            | "video-to-matte"
+            | "extend-video"
+            | "upscale-video"
+            | "motion-control"
+            | "lip-sync"
+            | "clean-plate"
+            | "render-to-real"
+            | "hdr"
+            | "outpaint"
+            | "reference-video-to-video"
+            | "text-to-speech"
+          )
+        | (string & {});
+      status: ("active" | "deprecated") | (string & {});
       /** @description A deprecated model refuses new requests from this time */
       sunsetAt: string | null;
       /** @description JSON Schema (2020-12) for POST /v1/runs with this model; x-roles lists each input role's accepted media and limits */
@@ -1240,9 +1825,26 @@ export interface components {
     };
     Quote: {
       model: string;
+      /** @description The request's inputs in order, each as the Library asset create would use: a url input's asset is the one ZeroGen imported for this quote. Send these as the create's inputs so it doesn't import the URLs again. Empty when the request has none */
+      inputs: {
+        role:
+          | (
+              | "source"
+              | "reference"
+              | "face-reference"
+              | "start-frame"
+              | "end-frame"
+              | "keyframe"
+              | "mask"
+            )
+          | (string & {});
+        /** @description Library asset ID */
+        asset: string;
+        /** @description Keyframes only, and required for them: seconds from the start of the video, on one of the model's frames */
+        timeSeconds?: number;
+      }[];
       billing: {
-        /** @enum {string} */
-        mode: "platform" | "byok" | "test";
+        mode: ("platform" | "byok" | "test") | (string & {});
         /** @description Reserved maximum expected charge */
         quotedMicroUsd: number;
       };
@@ -1251,14 +1853,16 @@ export interface components {
       id: string;
       /** @description The project that holds the outputs */
       projectId: string;
+      kind: ("generation" | "transform" | "upload") | (string & {});
       model: string | null;
       modelVersion: string | null;
-      /** @enum {string} */
-      status: "queued" | "running" | "succeeded" | "partial" | "failed" | "cancelled";
+      /** @description queued and running mean the run hasn't ended. On every other status, check each output: a cancelled or failed run can still hold succeeded outputs, which are kept and charged */
+      status:
+        | ("queued" | "running" | "succeeded" | "partial" | "failed" | "cancelled")
+        | (string & {});
       outputs: {
         index: number;
-        /** @enum {string} */
-        status: "queued" | "running" | "succeeded" | "failed" | "cancelled";
+        status: ("queued" | "running" | "succeeded" | "failed" | "cancelled") | (string & {});
         asset: {
           id: string;
           mimeType: string;
@@ -1286,7 +1890,7 @@ export interface components {
           /** @description A final can be requested now: unexpired, with no final in progress */
           upscalable: boolean;
           /** @description The newest final's state, or null when none was requested */
-          upscale: ("upscaling" | "upscaled") | null;
+          upscale: ("upscaling" | "upscaled") | (string & {}) | null;
           /** @description That final's resolution, one the model's draft control lists */
           finalResolution?: string;
           /** @description The newest finished final's asset */
@@ -1295,17 +1899,13 @@ export interface components {
       }[];
       error: components["schemas"]["Error"] | null;
       billing: {
-        /** @enum {string} */
-        mode: "platform" | "byok" | "test";
+        mode: ("platform" | "byok" | "test") | (string & {});
         /** @description held: an amount is reserved and nothing is charged yet; charged: chargedMicroUsd is the final charge; released: the hold ended with no charge; null: billing never admitted the run, so nothing was held or charged */
-        state: ("held" | "charged" | "released") | null;
+        state: ("held" | "charged" | "released") | (string & {}) | null;
         /** @description While held, where the run stands. It reports facts, not what settlement will do */
         hold?: {
-          /**
-           * @description running: the run has not ended; ended: it ended and the hold is still pending; needs_attention: it has stayed pending 30 minutes after ending, or 24 hours after admission with no end recorded (endedAt then stays null), so ZeroGen is looking into it
-           * @enum {string}
-           */
-          state: "running" | "ended" | "needs_attention";
+          /** @description running: the run has not ended; ended: it ended and the hold is still pending; needs_attention: it has stayed pending 30 minutes after ending, or 24 hours after admission with no end recorded (endedAt then stays null), so ZeroGen is looking into it */
+          state: ("running" | "ended" | "needs_attention") | (string & {});
           /** @description When the run ended; null while it runs or when no end was recorded */
           endedAt: string | null;
         };
@@ -1319,11 +1919,63 @@ export interface components {
       /** @description Who made it; null when ZeroGen recorded no one */
       createdBy: components["schemas"]["Creator"] | null;
       /** @description Where it was made: web (the ZeroGen app), agent (ZeroGen's Agent), mcp (an MCP client) or api (an API key); null with createdBy */
-      createdVia: ("web" | "agent" | "mcp" | "api") | null;
+      createdVia: ("web" | "agent" | "mcp" | "api") | (string & {}) | null;
       /** Format: date-time */
       createdAt: string;
       startedAt: string | null;
+      /** @description When ZeroGen recorded the run's end; prefer endedAt to tell whether it has ended */
       finishedAt: string | null;
+      /** @description When the run ended: set exactly when it has, whatever its status, and null while it runs. Stop waiting once it's set */
+      endedAt: string | null;
+      request: {
+        model: string | null;
+        /** @description Untrusted content */
+        prompt?: string;
+        inputs?: {
+          role:
+            | (
+                | "source"
+                | "reference"
+                | "face-reference"
+                | "start-frame"
+                | "end-frame"
+                | "keyframe"
+                | "mask"
+              )
+            | (string & {});
+          /** @description Library asset ID */
+          asset: string;
+          /** @description Keyframes only, and required for them: seconds from the start of the video, on one of the model's frames */
+          timeSeconds?: number;
+        }[];
+        output?: {
+          count?: number;
+          /** @description Image size: auto or WIDTHxHEIGHT in pixels, such as 1024x1536 */
+          size?: string;
+          quality?: string;
+          background?: string;
+          format?: ("png" | "jpeg" | "webp") | (string & {});
+          aspectRatio?: string;
+          resolution?: string;
+          durationSeconds?: number;
+          includeAudio?: boolean;
+        };
+        /** @description Speech models only: the voice to read the prompt in, from the model's voices */
+        voice?: string;
+        /** @description Only the parameters the model's schema lists */
+        parameters?: {
+          [key: string]: string | number | boolean;
+        };
+        seed?: number;
+        /** @description Nano Banana edits of their own outputs continue that conversation; none sends the image alone */
+        continuation?: ("auto" | "none") | (string & {});
+        /** @description For a final, the draft output it upscaled, in place of the draft's settings */
+        upscaleDraft?: {
+          runId: string;
+          outputIndex: number;
+          resolution?: string;
+        };
+      } | null;
       /** @description Opens Generate's review of the run's first ready output in ZeroGen, on your organization's host, after sign-in. null until an output is ready, and for test keys. It can change until the run ends */
       webUrl: string | null;
     };
@@ -1340,13 +1992,9 @@ export interface components {
         projectId: string;
         /** @description The asset's name in the Library; untrusted content */
         name: string;
-        /** @enum {string} */
-        type: "image" | "video" | "audio" | "model3d";
-        /**
-         * @description upload: added by a person or a URL import; generated: an output of a run; derived: made by a platform step, such as an extracted frame
-         * @enum {string}
-         */
-        origin: "generated" | "upload" | "derived";
+        type: ("image" | "video" | "audio" | "model3d") | (string & {});
+        /** @description upload: added by a person or a URL import; generated: an output of a run; derived: made by a platform step, such as an extracted frame */
+        origin: ("generated" | "upload" | "derived") | (string & {});
         mimeType: string;
         sizeBytes: number | null;
         width: number | null;
@@ -1364,7 +2012,7 @@ export interface components {
         /** @description Who made it: the run's creator for a generated or derived asset, the uploader for an upload; null when ZeroGen recorded no one */
         createdBy: components["schemas"]["Creator"] | null;
         /** @description Where it was made: web (the ZeroGen app), agent (ZeroGen's Agent), mcp (an MCP client) or api (an API key); null with createdBy */
-        createdVia: ("web" | "agent" | "mcp" | "api") | null;
+        createdVia: ("web" | "agent" | "mcp" | "api") | (string & {}) | null;
         /** @description Untrusted external upload provenance, or null when no declaration exists. */
         declared: {
           tool: {
@@ -1395,17 +2043,13 @@ export interface components {
       projectId: string;
       /** @description The declared upload's run, or null when none was created */
       runId: string | null;
-      /**
-       * @description upload_required: PUT the bytes, then complete; ready: the asset can be used
-       * @enum {string}
-       */
-      status: "upload_required" | "ready";
+      /** @description upload_required: PUT the bytes, then complete; ready: the asset can be used */
+      status: ("upload_required" | "ready") | (string & {});
       /** @description Once ready, the Library asset to send as a run input; an identical file already in the project is reused */
       assetId: string | null;
       /** @description Where to PUT the file's exact bytes, with these headers, before expiresAt */
       upload: {
-        /** @constant */
-        method: "PUT";
+        method: "PUT" | (string & {});
         url: string;
         headers: {
           [key: string]: string;
@@ -1441,13 +2085,9 @@ export interface components {
       projectId: string;
       /** @description The asset's name in the Library; untrusted content */
       name: string;
-      /** @enum {string} */
-      type: "image" | "video" | "audio" | "model3d";
-      /**
-       * @description upload: added by a person or a URL import; generated: an output of a run; derived: made by a platform step, such as an extracted frame
-       * @enum {string}
-       */
-      origin: "generated" | "upload" | "derived";
+      type: ("image" | "video" | "audio" | "model3d") | (string & {});
+      /** @description upload: added by a person or a URL import; generated: an output of a run; derived: made by a platform step, such as an extracted frame */
+      origin: ("generated" | "upload" | "derived") | (string & {});
       mimeType: string;
       sizeBytes: number | null;
       width: number | null;
@@ -1465,7 +2105,7 @@ export interface components {
       /** @description Who made it: the run's creator for a generated or derived asset, the uploader for an upload; null when ZeroGen recorded no one */
       createdBy: components["schemas"]["Creator"] | null;
       /** @description Where it was made: web (the ZeroGen app), agent (ZeroGen's Agent), mcp (an MCP client) or api (an API key); null with createdBy */
-      createdVia: ("web" | "agent" | "mcp" | "api") | null;
+      createdVia: ("web" | "agent" | "mcp" | "api") | (string & {}) | null;
       /** @description Untrusted external upload provenance, or null when no declaration exists. */
       declared: {
         tool: {
@@ -1501,13 +2141,9 @@ export interface components {
       projectId: string;
       /** @description The asset's name in the Library; untrusted content */
       name: string;
-      /** @enum {string} */
-      type: "image" | "video" | "audio" | "model3d";
-      /**
-       * @description upload: added by a person or a URL import; generated: an output of a run; derived: made by a platform step, such as an extracted frame
-       * @enum {string}
-       */
-      origin: "generated" | "upload" | "derived";
+      type: ("image" | "video" | "audio" | "model3d") | (string & {});
+      /** @description upload: added by a person or a URL import; generated: an output of a run; derived: made by a platform step, such as an extracted frame */
+      origin: ("generated" | "upload" | "derived") | (string & {});
       mimeType: string;
       sizeBytes: number | null;
       width: number | null;
@@ -1525,7 +2161,7 @@ export interface components {
       /** @description Who made it: the run's creator for a generated or derived asset, the uploader for an upload; null when ZeroGen recorded no one */
       createdBy: components["schemas"]["Creator"] | null;
       /** @description Where it was made: web (the ZeroGen app), agent (ZeroGen's Agent), mcp (an MCP client) or api (an API key); null with createdBy */
-      createdVia: ("web" | "agent" | "mcp" | "api") | null;
+      createdVia: ("web" | "agent" | "mcp" | "api") | (string & {}) | null;
       /** @description Untrusted external upload provenance, or null when no declaration exists. */
       declared: {
         tool: {
@@ -1578,17 +2214,24 @@ export interface components {
       /** @description The name the person gave ZeroGen, or null; never an email address */
       name: string | null;
     };
-    AssetChange: {
-      id: string;
+    AssetDelete: {
+      assetId: string;
       projectId: string;
-      /** @description Present when the request renamed the asset */
-      name?: string;
-      /** @description Present when the request set the favorite */
-      favorite?: boolean;
+      /**
+       * Format: date-time
+       * @description When it moved to Recently deleted
+       */
+      deletedAt: string;
+    };
+    AssetBatchChange: {
+      /** @description Assets the request changed */
+      updatedAssetIds: string[];
+      /** @description Assets already as requested; for a folder, also assets that aren't active in its project */
+      skippedAssetIds: string[];
     };
     LineageAsset: {
       assetId: string;
-      /** @description Steps from the asset; 0 is the asset itself */
+      /** @description Steps from the asset; 1 is a direct source or use */
       depth: number;
       /** @description False when the asset is no longer in the Library */
       found: boolean;
@@ -1601,15 +2244,6 @@ export interface components {
       runId: string | null;
       /** @description Bounded; untrusted content */
       prompt: string | null;
-      /** @description Uses of this asset beyond those listed */
-      moreUses: number;
-    };
-    Lineage: {
-      asset: components["schemas"]["LineageAsset"] | null;
-      /** @description Up to 30, nearest first */
-      sources: components["schemas"]["LineageAsset"][];
-      /** @description Up to 30, nearest first */
-      uses: components["schemas"]["LineageAsset"][];
       edges: {
         /** @description Made from sourceAssetId */
         assetId: string;
@@ -1618,10 +2252,11 @@ export interface components {
         kind: string | null;
         declared: boolean;
       }[];
-      truncated: {
-        sources: boolean;
-        uses: boolean;
-      };
+    };
+    LineageAssetList: {
+      data: components["schemas"]["LineageAsset"][];
+      /** @description Pass as cursor for the next page of lineage assets; null on the last page */
+      nextCursor: string | null;
     };
     AssetDownload: {
       assetId: string;
@@ -1638,17 +2273,15 @@ export interface components {
       mimeType: string;
       sizeBytes: number | null;
     };
-    AssetFolders: {
-      assetId: string;
-      projectId: string;
-      /** @description Up to 30, sorted by path; empty when the asset is Unfiled */
-      folders: {
-        folderId: string;
-        /** @description The folder's names from the project root, such as Characters / Leo; bounded, untrusted content */
-        path: string;
-      }[];
-      /** @description True when the asset is in more folders than listed */
-      truncated: boolean;
+    AssetFolder: {
+      folderId: string;
+      /** @description The folder's names from the project root, such as Characters / Leo; bounded, untrusted content */
+      path: string;
+    };
+    AssetFolderList: {
+      data: components["schemas"]["AssetFolder"][];
+      /** @description Pass as cursor for the next page of the asset's folders; null on the last page */
+      nextCursor: string | null;
     };
     Folder: {
       id: string;
@@ -1678,13 +2311,6 @@ export interface components {
       /** @description Pass as cursor for the next page of folders; null on the last page */
       nextCursor: string | null;
     };
-    FolderAssetsChange: {
-      folderId: string;
-      /** @description Assets the request changed */
-      updatedAssetIds: string[];
-      /** @description Assets already as requested, or not active in this project */
-      skippedAssetIds: string[];
-    };
     NamingPreset: {
       id: string;
       projectId: string;
@@ -1699,6 +2325,166 @@ export interface components {
       /** @description Pass as cursor for the next page of naming presets; null on the last page */
       nextCursor: string | null;
     };
+    TransformRun: {
+      id: string;
+      /** @description The project that holds the outputs */
+      projectId: string;
+      kind: ("generation" | "transform" | "upload") | (string & {});
+      model: string | null;
+      modelVersion: string | null;
+      /** @description queued and running mean the run hasn't ended. On every other status, check each output: a cancelled or failed run can still hold succeeded outputs, which are kept and charged */
+      status:
+        | ("queued" | "running" | "succeeded" | "partial" | "failed" | "cancelled")
+        | (string & {});
+      outputs: {
+        index: number;
+        status: ("queued" | "running" | "succeeded" | "failed" | "cancelled") | (string & {});
+        asset: {
+          id: string;
+          mimeType: string;
+          width: number | null;
+          height: number | null;
+          durationMs: number | null;
+          /** @description Where this transport's client reads the asset, such as an MCP resource */
+          resourceUri?: string;
+          /** @description The asset's previews, or null until they're made after the asset is ready, and for assets with none, such as audio */
+          preview: components["schemas"]["AssetPreview"] | null;
+        } | null;
+        error: components["schemas"]["Error"] | null;
+        /** @description What the provider ignored, such as an unused reference */
+        warnings?: {
+          code: string;
+          message: string;
+        }[];
+        /** @description A 480p Draft output; upscaling it makes a final with the same seed, at a resolution the model's draft control lists */
+        draft?: {
+          /**
+           * Format: date-time
+           * @description When upscaling this output closes
+           */
+          expiresAt: string;
+          /** @description A final can be requested now: unexpired, with no final in progress */
+          upscalable: boolean;
+          /** @description The newest final's state, or null when none was requested */
+          upscale: ("upscaling" | "upscaled") | (string & {}) | null;
+          /** @description That final's resolution, one the model's draft control lists */
+          finalResolution?: string;
+          /** @description The newest finished final's asset */
+          finalAssetId?: string;
+        };
+      }[];
+      error: components["schemas"]["Error"] | null;
+      billing: {
+        mode: ("platform" | "byok" | "test") | (string & {});
+        /** @description held: an amount is reserved and nothing is charged yet; charged: chargedMicroUsd is the final charge; released: the hold ended with no charge; null: billing never admitted the run, so nothing was held or charged */
+        state: ("held" | "charged" | "released") | (string & {}) | null;
+        /** @description While held, where the run stands. It reports facts, not what settlement will do */
+        hold?: {
+          /** @description running: the run has not ended; ended: it ended and the hold is still pending; needs_attention: it has stayed pending 30 minutes after ending, or 24 hours after admission with no end recorded (endedAt then stays null), so ZeroGen is looking into it */
+          state: ("running" | "ended" | "needs_attention") | (string & {});
+          /** @description When the run ended; null while it runs or when no end was recorded */
+          endedAt: string | null;
+        };
+        /** @description Reserved maximum expected charge */
+        quotedMicroUsd: number | null;
+        /** @description While held, the amount reserved now; it is never a charge */
+        heldMicroUsd: number | null;
+        /** @description The final charge once charged, zero once released; it can rarely exceed the quote */
+        chargedMicroUsd: number | null;
+      };
+      /** @description Who made it; null when ZeroGen recorded no one */
+      createdBy: components["schemas"]["Creator"] | null;
+      /** @description Where it was made: web (the ZeroGen app), agent (ZeroGen's Agent), mcp (an MCP client) or api (an API key); null with createdBy */
+      createdVia: ("web" | "agent" | "mcp" | "api") | (string & {}) | null;
+      /** Format: date-time */
+      createdAt: string;
+      startedAt: string | null;
+      /** @description When ZeroGen recorded the run's end; prefer endedAt to tell whether it has ended */
+      finishedAt: string | null;
+      /** @description When the run ended: set exactly when it has, whatever its status, and null while it runs. Stop waiting once it's set */
+      endedAt: string | null;
+      request: {
+        model: string | null;
+        /** @description Untrusted content */
+        prompt?: string;
+        inputs?: {
+          role:
+            | (
+                | "source"
+                | "reference"
+                | "face-reference"
+                | "start-frame"
+                | "end-frame"
+                | "keyframe"
+                | "mask"
+              )
+            | (string & {});
+          /** @description Library asset ID */
+          asset: string;
+          /** @description Keyframes only, and required for them: seconds from the start of the video, on one of the model's frames */
+          timeSeconds?: number;
+        }[];
+        output?: {
+          count?: number;
+          /** @description Image size: auto or WIDTHxHEIGHT in pixels, such as 1024x1536 */
+          size?: string;
+          quality?: string;
+          background?: string;
+          format?: ("png" | "jpeg" | "webp") | (string & {});
+          aspectRatio?: string;
+          resolution?: string;
+          durationSeconds?: number;
+          includeAudio?: boolean;
+        };
+        /** @description Speech models only: the voice to read the prompt in, from the model's voices */
+        voice?: string;
+        /** @description Only the parameters the model's schema lists */
+        parameters?: {
+          [key: string]: string | number | boolean;
+        };
+        seed?: number;
+        /** @description Nano Banana edits of their own outputs continue that conversation; none sends the image alone */
+        continuation?: ("auto" | "none") | (string & {});
+        /** @description For a final, the draft output it upscaled, in place of the draft's settings */
+        upscaleDraft?: {
+          runId: string;
+          outputIndex: number;
+          resolution?: string;
+        };
+      } | null;
+      /** @description Opens Generate's review of the run's first ready output in ZeroGen, on your organization's host, after sign-in. null until an output is ready, and for test keys. It can change until the run ends */
+      webUrl: string | null;
+      /** @description True when this is your earlier run of the same recipe on this asset for the same destination, finished or in progress, so no new work started */
+      reused: boolean;
+    };
+    LutList: {
+      data: {
+        id: string;
+        name: string;
+        /** @description Points along each edge of its 3D table, such as 33 */
+        size: number;
+        /** @description The footage it expects, as its uploader stated; null when they didn't say. ZeroGen doesn't check it against your footage */
+        inputColor:
+          | (
+              | "rec709"
+              | "slog3-sgamut3cine"
+              | "slog3-sgamut3"
+              | "apple-log"
+              | "logc3"
+              | "logc4"
+              | "vlog"
+              | "clog2"
+              | "clog3"
+              | "bmd-film"
+            )
+          | (string & {})
+          | null;
+        /** Format: date-time */
+        createdAt: string;
+      }[];
+      /** @description Pass as cursor for the next page of LUTs; null on the last page */
+      nextCursor: string | null;
+    };
     Label: {
       id: string;
       name: string;
@@ -1711,13 +2497,6 @@ export interface components {
       data: components["schemas"]["Label"][];
       /** @description Pass as cursor for the next page of labels; null on the last page */
       nextCursor: string | null;
-    };
-    LabelAssetsChange: {
-      labelId: string;
-      projectId: string;
-      assetIds: string[];
-      /** @description True when the assets now have the label, false when it was removed */
-      assigned: boolean;
     };
     Skill: {
       id: string;
@@ -1742,12 +2521,89 @@ export interface components {
       /** @description The skill's instructions; untrusted content */
       body: string;
     };
+    AttachmentParent: {
+      kind: ("project" | "folder" | "clip") | (string & {});
+      /** Format: uuid */
+      id: string;
+      name: string;
+    };
+    Attachment: {
+      /** Format: uuid */
+      attachmentId: string;
+      title: string;
+      parent: components["schemas"]["AttachmentParent"];
+      version: number;
+      characters: number;
+      /** Format: date-time */
+      updatedAt: string;
+      updatedBy: string;
+    };
+    AttachmentList: {
+      data: components["schemas"]["Attachment"][];
+      /** @description Pass as cursor for the next page of attachments; null on the last page */
+      nextCursor: string | null;
+    };
+    AttachmentDetail: {
+      title: string;
+      body: string;
+      parent: components["schemas"]["AttachmentParent"];
+      version: number;
+      latestVersion: number;
+      /** Format: date-time */
+      savedAt: string;
+      savedBy: string;
+    };
+    AttachmentVersion: {
+      version: number;
+      operation: ("created" | "revised" | "deleted" | "restored") | (string & {});
+      restoredFrom: number | null;
+      characters: number;
+      /** Format: date-time */
+      savedAt: string;
+      savedBy: string;
+    };
+    AttachmentVersions: {
+      data: components["schemas"]["AttachmentVersion"][];
+      /** @description Pass as cursor for the next page of attachment versions; null on the last page */
+      nextCursor: string | null;
+    };
+    AttachmentCreate: {
+      /** Format: uuid */
+      projectId: string;
+      version: number;
+      /** Format: uuid */
+      attachmentId: string;
+      outcome: ("created" | "unchanged") | (string & {});
+    };
+    AttachmentRevise: {
+      /** Format: uuid */
+      projectId: string;
+      version: number;
+      outcome: ("revised" | "unchanged") | (string & {});
+    };
+    AttachmentDelete: {
+      /** Format: uuid */
+      projectId: string;
+      version: number;
+      outcome: ("deleted" | "unchanged") | (string & {});
+    };
+    AttachmentRestore: {
+      /** Format: uuid */
+      projectId: string;
+      version: number;
+      restoredFrom: number;
+      outcome: ("restored" | "unchanged") | (string & {});
+    };
     Error: {
       code: string;
       message: string;
       param?: string;
       retryable: boolean;
+      /** @description More facts about the error; each code says which it carries */
       details?: {
+        /** @description The cause. Stable for rate_limited (request_limit, running_cap, platform_capacity, url_import_limit) and permission_denied (scope_required, role_required, not_creator, feature_not_enabled, early_access, test_key_sandbox, browser_request); for a run or output error, for diagnosis only */
+        reason?: string;
+      } & {
         [key: string]: unknown;
       };
     };
@@ -1793,7 +2649,7 @@ export interface components {
         "application/json": components["schemas"]["ErrorResponse"];
       };
     };
-    /** @description permission_denied: the key lacks the scope this endpoint needs, the request came from a browser, or the API isn't enabled for the organization. */
+    /** @description permission_denied: the key can't do this. details.reason says why: scope_required, role_required, not_creator, feature_not_enabled, early_access, test_key_sandbox, browser_request. For scope_required, details.scope names the scope. */
     Forbidden: {
       headers: {
         "Request-Id": components["headers"]["Request-Id"];
@@ -1819,7 +2675,7 @@ export interface components {
         "application/json": components["schemas"]["ErrorResponse"];
       };
     };
-    /** @description idempotency_conflict: the Idempotency-Key was used for a different request. idempotency_in_progress: the first request with this key hasn't finished. invalid_state: the request can't go ahead as things stand, such as a run that needs a person's approval in ZeroGen. */
+    /** @description idempotency_conflict: the Idempotency-Key was used for a different request. idempotency_in_progress: the first request with this key hasn't finished. invalid_state: the request can't go ahead as things stand, such as a run that needs a person's approval in ZeroGen, an upload that can't take a declaration, or a naming preset that changed since it was read. version_conflict: the attachment isn't at expectedVersion; details.currentVersion says which it is. */
     Conflict: {
       headers: {
         "Request-Id": components["headers"]["Request-Id"];
@@ -1858,7 +2714,7 @@ export interface components {
         "application/json": components["schemas"]["ErrorResponse"];
       };
     };
-    /** @description rate_limited: the key or its owner is over the rate limit, or the organization is at its running cap. Retry after Retry-After seconds. */
+    /** @description rate_limited: details.reason says which limit: request_limit, running_cap, platform_capacity, url_import_limit. Retry after Retry-After seconds. */
     TooManyRequests: {
       headers: {
         "Request-Id": components["headers"]["Request-Id"];
@@ -1885,7 +2741,7 @@ export interface components {
         "application/json": components["schemas"]["ErrorResponse"];
       };
     };
-    /** @description unavailable or pricing_unavailable: API keys, billing or pricing can't be reached right now. Retry. */
+    /** @description unavailable or pricing_unavailable: API keys, billing or pricing can't be reached right now. retryable says whether a retry can help. */
     ServiceUnavailable: {
       headers: {
         "Request-Id": components["headers"]["Request-Id"];
@@ -2008,6 +2864,7 @@ export interface operations {
           | "inpaint"
           | "remix"
           | "text-to-vector"
+          | "image-to-matte"
           | "text-to-video"
           | "image-to-video"
           | "first-last-frame-to-video"
@@ -2015,7 +2872,9 @@ export interface operations {
           | "reference-to-video"
           | "audio-to-video"
           | "video-to-video"
+          | "video-to-matte"
           | "extend-video"
+          | "upscale-video"
           | "motion-control"
           | "lip-sync"
           | "clean-plate"
@@ -2165,6 +3024,14 @@ export interface operations {
         projectId?: string;
         /** @description Only runs filed in this folder; needs projectId */
         folderId?: string;
+        /** @description Only runs any of these users started, by the ID in a run's `createdBy` or `GET /v1/me`; repeat the parameter */
+        createdBy?: string[];
+        /** @description Only runs with any of these statuses; repeat the parameter */
+        status?: ("queued" | "running" | "succeeded" | "partial" | "failed" | "cancelled")[];
+        /** @description Only runs created at or after this RFC 3339 time, such as 2026-11-10T00:00:00Z */
+        createdAfter?: string;
+        /** @description Only runs created before this RFC 3339 time */
+        createdBefore?: string;
         /** @description Runs per page; default 10 */
         limit?: number;
         /** @description nextCursor from the previous page, with the same filters */
@@ -2373,6 +3240,42 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
+  getRunOutputDownload: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description The run's ID */
+        id: string;
+        /** @description The output's asset ID, from `outputs[].asset.id` */
+        assetId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Where to download the file. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AssetDownload"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
   createUpload: {
     parameters: {
       query?: never;
@@ -2514,14 +3417,19 @@ export interface operations {
   };
   listProjects: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Projects per page; default 50 */
+        limit?: number;
+        /** @description nextCursor from the previous page, with the same filters */
+        cursor?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
     };
     requestBody?: never;
     responses: {
-      /** @description The projects. */
+      /** @description A page of projects. */
       200: {
         headers: {
           "Request-Id": components["headers"]["Request-Id"];
@@ -2537,6 +3445,40 @@ export interface operations {
       400: components["responses"]["BadRequest"];
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  getProject: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description The project's ID */
+        projectId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The project. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Project"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
       429: components["responses"]["TooManyRequests"];
       500: components["responses"]["InternalError"];
       503: components["responses"]["ServiceUnavailable"];
@@ -2635,6 +3577,139 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
+  deleteAsset: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Makes retries safe: a retry with the same key and body returns the first response for 24 hours instead of repeating the work. Reusing a key with a different body returns 409. */
+        "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        /** @description The asset's ID */
+        assetId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The deletion. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          "Idempotent-Replayed": components["headers"]["Idempotent-Replayed"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AssetDelete"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      415: components["responses"]["UnsupportedMediaType"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  updateAsset: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Makes retries safe: a retry with the same key and body returns the first response for 24 hours instead of repeating the work. Reusing a key with a different body returns 409. */
+        "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        /** @description The asset's ID */
+        assetId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        /**
+         * @example {
+         *       "name": "Hero shot",
+         *       "favorite": true
+         *     }
+         */
+        "application/json": components["schemas"]["UpdateAssetRequest"];
+      };
+    };
+    responses: {
+      /** @description The asset. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          "Idempotent-Replayed": components["headers"]["Idempotent-Replayed"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AssetDetail"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      415: components["responses"]["UnsupportedMediaType"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  restoreAsset: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Makes retries safe: a retry with the same key and body returns the first response for 24 hours instead of repeating the work. Reusing a key with a different body returns 409. */
+        "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        /** @description The asset's ID */
+        assetId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The restored asset. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          "Idempotent-Replayed": components["headers"]["Idempotent-Replayed"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AssetDetail"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      415: components["responses"]["UnsupportedMediaType"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
   declareAssetUpload: {
     parameters: {
       query?: never;
@@ -2680,9 +3755,92 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
-  getAssetLineage: {
+  transformAsset: {
     parameters: {
       query?: never;
+      header?: {
+        /** @description Makes retries safe: a retry with the same key and body returns the first response for 24 hours instead of repeating the work. Reusing a key with a different body returns 409. */
+        "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+        /** @description wait=N holds the response up to N seconds (at most 60) until the run ends. */
+        Prefer?: components["parameters"]["Prefer"];
+      };
+      path: {
+        /** @description The asset's ID */
+        assetId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        /**
+         * @example {
+         *       "recipe": {
+         *         "trim": {
+         *           "startSeconds": 0,
+         *           "endSeconds": 5
+         *         },
+         *         "resize": {
+         *           "maxEdge": 1280
+         *         }
+         *       }
+         *     }
+         */
+        "application/json": components["schemas"]["TransformAssetRequest"];
+      };
+    };
+    responses: {
+      /** @description The run has ended, within the requested wait, or had already ended. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          "Idempotent-Replayed": components["headers"]["Idempotent-Replayed"];
+          Location: components["headers"]["Location"];
+          "Preference-Applied": components["headers"]["Preference-Applied"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TransformRun"];
+        };
+      };
+      /** @description The run has not ended yet. */
+      202: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          "Idempotent-Replayed": components["headers"]["Idempotent-Replayed"];
+          Location: components["headers"]["Location"];
+          "Preference-Applied": components["headers"]["Preference-Applied"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TransformRun"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      415: components["responses"]["UnsupportedMediaType"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  listAssetSources: {
+    parameters: {
+      query?: {
+        /** @description Sources per page; default 30 */
+        limit?: number;
+        /** @description nextCursor from the previous page, with the same filters */
+        cursor?: string;
+      };
       header?: never;
       path: {
         /** @description The asset's ID */
@@ -2692,7 +3850,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The asset's lineage. */
+      /** @description A page of sources. */
       200: {
         headers: {
           "Request-Id": components["headers"]["Request-Id"];
@@ -2702,7 +3860,46 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["Lineage"];
+          "application/json": components["schemas"]["LineageAssetList"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  listAssetUses: {
+    parameters: {
+      query?: {
+        /** @description Uses per page; default 30 */
+        limit?: number;
+        /** @description nextCursor from the previous page, with the same filters */
+        cursor?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The asset's ID */
+        assetId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of uses. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["LineageAssetList"];
         };
       };
       400: components["responses"]["BadRequest"];
@@ -2750,7 +3947,12 @@ export interface operations {
   };
   listAssetFolders: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Folders per page; default 30 */
+        limit?: number;
+        /** @description nextCursor from the previous page, with the same filters */
+        cursor?: string;
+      };
       header?: never;
       path: {
         /** @description The asset's ID */
@@ -2760,7 +3962,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The asset's folders. */
+      /** @description A page of the asset's folders. */
       200: {
         headers: {
           "Request-Id": components["headers"]["Request-Id"];
@@ -2770,169 +3972,13 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["AssetFolders"];
+          "application/json": components["schemas"]["AssetFolderList"];
         };
       };
       400: components["responses"]["BadRequest"];
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
       404: components["responses"]["NotFound"];
-      429: components["responses"]["TooManyRequests"];
-      500: components["responses"]["InternalError"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  updateAsset: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description The project's ID */
-        projectId: string;
-        /** @description The asset's ID */
-        assetId: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        /**
-         * @example {
-         *       "name": "Hero shot",
-         *       "favorite": true
-         *     }
-         */
-        "application/json": components["schemas"]["UpdateAssetRequest"];
-      };
-    };
-    responses: {
-      /** @description What the request changed. */
-      200: {
-        headers: {
-          "Request-Id": components["headers"]["Request-Id"];
-          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
-          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
-          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["AssetChange"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      404: components["responses"]["NotFound"];
-      413: components["responses"]["PayloadTooLarge"];
-      415: components["responses"]["UnsupportedMediaType"];
-      429: components["responses"]["TooManyRequests"];
-      500: components["responses"]["InternalError"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  addLabel: {
-    parameters: {
-      query?: never;
-      header?: {
-        /** @description Makes retries safe: a retry with the same key and body returns the first response for 24 hours instead of repeating the work. Reusing a key with a different body returns 409. */
-        "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
-      };
-      path: {
-        /** @description The project's ID */
-        projectId: string;
-        /** @description The label's ID */
-        labelId: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        /**
-         * @example {
-         *       "assetIds": [
-         *         "3f6c2a1e-8b4d-4e2a-9c7f-1a2b3c4d5e6f"
-         *       ]
-         *     }
-         */
-        "application/json": components["schemas"]["LabelAssetsRequest"];
-      };
-    };
-    responses: {
-      /** @description What the request changed. */
-      200: {
-        headers: {
-          "Request-Id": components["headers"]["Request-Id"];
-          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
-          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
-          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
-          "Idempotent-Replayed": components["headers"]["Idempotent-Replayed"];
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["LabelAssetsChange"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      404: components["responses"]["NotFound"];
-      409: components["responses"]["Conflict"];
-      413: components["responses"]["PayloadTooLarge"];
-      415: components["responses"]["UnsupportedMediaType"];
-      429: components["responses"]["TooManyRequests"];
-      500: components["responses"]["InternalError"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  removeLabel: {
-    parameters: {
-      query?: never;
-      header?: {
-        /** @description Makes retries safe: a retry with the same key and body returns the first response for 24 hours instead of repeating the work. Reusing a key with a different body returns 409. */
-        "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
-      };
-      path: {
-        /** @description The project's ID */
-        projectId: string;
-        /** @description The label's ID */
-        labelId: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        /**
-         * @example {
-         *       "assetIds": [
-         *         "3f6c2a1e-8b4d-4e2a-9c7f-1a2b3c4d5e6f"
-         *       ]
-         *     }
-         */
-        "application/json": components["schemas"]["LabelAssetsRequest"];
-      };
-    };
-    responses: {
-      /** @description What the request changed. */
-      200: {
-        headers: {
-          "Request-Id": components["headers"]["Request-Id"];
-          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
-          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
-          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
-          "Idempotent-Replayed": components["headers"]["Idempotent-Replayed"];
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["LabelAssetsChange"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      404: components["responses"]["NotFound"];
-      409: components["responses"]["Conflict"];
-      413: components["responses"]["PayloadTooLarge"];
-      415: components["responses"]["UnsupportedMediaType"];
       429: components["responses"]["TooManyRequests"];
       500: components["responses"]["InternalError"];
       503: components["responses"]["ServiceUnavailable"];
@@ -2940,17 +3986,16 @@ export interface operations {
   };
   listFolders: {
     parameters: {
-      query?: {
+      query: {
+        /** @description The project whose folders to list */
+        projectId: string;
         /** @description Folders per page; default 50 */
         limit?: number;
         /** @description nextCursor from the previous page, with the same filters */
         cursor?: string;
       };
       header?: never;
-      path: {
-        /** @description The project's ID */
-        projectId: string;
-      };
+      path?: never;
       cookie?: never;
     };
     requestBody?: never;
@@ -2984,16 +4029,14 @@ export interface operations {
         /** @description Makes retries safe: a retry with the same key and body returns the first response for 24 hours instead of repeating the work. Reusing a key with a different body returns 409. */
         "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
       };
-      path: {
-        /** @description The project's ID */
-        projectId: string;
-      };
+      path?: never;
       cookie?: never;
     };
     requestBody: {
       content: {
         /**
          * @example {
+         *       "projectId": "5a4b3c2d-1e0f-4a9b-8c7d-6e5f4a3b2c1d",
          *       "name": "Shots",
          *       "reuseExisting": true
          *     }
@@ -3042,6 +4085,40 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
+  getFolder: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description The folder's ID */
+        folderId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The folder. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Folder"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
   deleteFolder: {
     parameters: {
       query: {
@@ -3053,8 +4130,6 @@ export interface operations {
         "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
       };
       path: {
-        /** @description The project's ID */
-        projectId: string;
         /** @description The folder's ID */
         folderId: string;
       };
@@ -3091,10 +4166,11 @@ export interface operations {
   updateFolder: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        /** @description Makes retries safe: a retry with the same key and body returns the first response for 24 hours instead of repeating the work. Reusing a key with a different body returns 409. */
+        "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+      };
       path: {
-        /** @description The project's ID */
-        projectId: string;
         /** @description The folder's ID */
         folderId: string;
       };
@@ -3118,6 +4194,7 @@ export interface operations {
           "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
           "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
           "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          "Idempotent-Replayed": components["headers"]["Idempotent-Replayed"];
           [name: string]: unknown;
         };
         content: {
@@ -3128,6 +4205,7 @@ export interface operations {
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
       404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
       413: components["responses"]["PayloadTooLarge"];
       415: components["responses"]["UnsupportedMediaType"];
       429: components["responses"]["TooManyRequests"];
@@ -3142,10 +4220,7 @@ export interface operations {
         /** @description Makes retries safe: a retry with the same key and body returns the first response for 24 hours instead of repeating the work. Reusing a key with a different body returns 409. */
         "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
       };
-      path: {
-        /** @description The project's ID */
-        projectId: string;
-      };
+      path?: never;
       cookie?: never;
     };
     requestBody: {
@@ -3188,8 +4263,6 @@ export interface operations {
         "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
       };
       path: {
-        /** @description The project's ID */
-        projectId: string;
         /** @description The folder's ID */
         folderId: string;
       };
@@ -3204,7 +4277,7 @@ export interface operations {
          *       ]
          *     }
          */
-        "application/json": components["schemas"]["FolderAssetsRequest"];
+        "application/json": components["schemas"]["AssetBatchRequest"];
       };
     };
     responses: {
@@ -3219,7 +4292,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["FolderAssetsChange"];
+          "application/json": components["schemas"]["AssetBatchChange"];
         };
       };
       400: components["responses"]["BadRequest"];
@@ -3242,8 +4315,6 @@ export interface operations {
         "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
       };
       path: {
-        /** @description The project's ID */
-        projectId: string;
         /** @description The folder's ID */
         folderId: string;
       };
@@ -3274,7 +4345,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["FolderAssetsChange"];
+          "application/json": components["schemas"]["AssetBatchChange"];
         };
       };
       400: components["responses"]["BadRequest"];
@@ -3297,8 +4368,6 @@ export interface operations {
         "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
       };
       path: {
-        /** @description The project's ID */
-        projectId: string;
         /** @description The folder's ID */
         folderId: string;
       };
@@ -3313,7 +4382,7 @@ export interface operations {
          *       ]
          *     }
          */
-        "application/json": components["schemas"]["FolderAssetsRequest"];
+        "application/json": components["schemas"]["AssetBatchRequest"];
       };
     };
     responses: {
@@ -3328,7 +4397,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["FolderAssetsChange"];
+          "application/json": components["schemas"]["AssetBatchChange"];
         };
       };
       400: components["responses"]["BadRequest"];
@@ -3345,17 +4414,16 @@ export interface operations {
   };
   listNamingPresets: {
     parameters: {
-      query?: {
+      query: {
+        /** @description The project whose presets to list */
+        projectId: string;
         /** @description Presets per page; default 20 */
         limit?: number;
         /** @description nextCursor from the previous page, with the same filters */
         cursor?: string;
       };
       header?: never;
-      path: {
-        /** @description The project's ID */
-        projectId: string;
-      };
+      path?: never;
       cookie?: never;
     };
     requestBody?: never;
@@ -3377,6 +4445,130 @@ export interface operations {
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
       404: components["responses"]["NotFound"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  createNamingPreset: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Makes retries safe: a retry with the same key and body returns the first response for 24 hours instead of repeating the work. Reusing a key with a different body returns 409. */
+        "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        /**
+         * @example {
+         *       "projectId": "5a4b3c2d-1e0f-4a9b-8c7d-6e5f4a3b2c1d",
+         *       "name": "Plate drafts",
+         *       "definition": {
+         *         "delimiter": "_",
+         *         "fields": [
+         *           {
+         *             "id": "plate",
+         *             "kind": "text",
+         *             "label": "Plate",
+         *             "prefix": "",
+         *             "padding": 1,
+         *             "step": 1,
+         *             "sequence": "number",
+         *             "artistFormat": "initials",
+         *             "dateFormat": "YYYY-MM-DD",
+         *             "defaultValue": ""
+         *           },
+         *           {
+         *             "id": "tag",
+         *             "kind": "text",
+         *             "label": "Tag",
+         *             "prefix": "",
+         *             "padding": 1,
+         *             "step": 1,
+         *             "sequence": "number",
+         *             "artistFormat": "initials",
+         *             "dateFormat": "YYYY-MM-DD",
+         *             "defaultValue": "draft480"
+         *           },
+         *           {
+         *             "id": "version",
+         *             "kind": "version",
+         *             "label": "Version",
+         *             "prefix": "v",
+         *             "padding": 3,
+         *             "step": 1,
+         *             "sequence": "number",
+         *             "artistFormat": "initials",
+         *             "dateFormat": "YYYY-MM-DD",
+         *             "defaultValue": ""
+         *           }
+         *         ]
+         *       }
+         *     }
+         */
+        "application/json": components["schemas"]["CreateNamingPresetRequest"];
+      };
+    };
+    responses: {
+      /** @description The new naming preset. */
+      201: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          "Idempotent-Replayed": components["headers"]["Idempotent-Replayed"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["NamingPreset"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      415: components["responses"]["UnsupportedMediaType"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  listLuts: {
+    parameters: {
+      query?: {
+        /** @description LUTs per page; default 50 */
+        limit?: number;
+        /** @description nextCursor from the previous page, with the same filters */
+        cursor?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of LUTs. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["LutList"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
       429: components["responses"]["TooManyRequests"];
       500: components["responses"]["InternalError"];
       503: components["responses"]["ServiceUnavailable"];
@@ -3466,7 +4658,7 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
-  updateLabel: {
+  getLabel: {
     parameters: {
       query?: never;
       header?: never;
@@ -3476,18 +4668,7 @@ export interface operations {
       };
       cookie?: never;
     };
-    requestBody: {
-      content: {
-        /**
-         * @example {
-         *       "name": "Approved",
-         *       "description": "Signed off by the client",
-         *       "color": "#22c55e"
-         *     }
-         */
-        "application/json": components["schemas"]["UpdateLabelRequest"];
-      };
-    };
+    requestBody?: never;
     responses: {
       /** @description The label. */
       200: {
@@ -3506,6 +4687,55 @@ export interface operations {
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
       404: components["responses"]["NotFound"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  updateLabel: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Makes retries safe: a retry with the same key and body returns the first response for 24 hours instead of repeating the work. Reusing a key with a different body returns 409. */
+        "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        /** @description The label's ID */
+        labelId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        /**
+         * @example {
+         *       "name": "Approved",
+         *       "color": "#22c55e"
+         *     }
+         */
+        "application/json": components["schemas"]["UpdateLabelRequest"];
+      };
+    };
+    responses: {
+      /** @description The label. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          "Idempotent-Replayed": components["headers"]["Idempotent-Replayed"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Label"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
       413: components["responses"]["PayloadTooLarge"];
       415: components["responses"]["UnsupportedMediaType"];
       429: components["responses"]["TooManyRequests"];
@@ -3590,6 +4820,432 @@ export interface operations {
       409: components["responses"]["Conflict"];
       413: components["responses"]["PayloadTooLarge"];
       415: components["responses"]["UnsupportedMediaType"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  addLabel: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Makes retries safe: a retry with the same key and body returns the first response for 24 hours instead of repeating the work. Reusing a key with a different body returns 409. */
+        "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        /** @description The label's ID */
+        labelId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        /**
+         * @example {
+         *       "assetIds": [
+         *         "3f6c2a1e-8b4d-4e2a-9c7f-1a2b3c4d5e6f"
+         *       ]
+         *     }
+         */
+        "application/json": components["schemas"]["AssetBatchRequest"];
+      };
+    };
+    responses: {
+      /** @description What the request changed. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          "Idempotent-Replayed": components["headers"]["Idempotent-Replayed"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AssetBatchChange"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      415: components["responses"]["UnsupportedMediaType"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  removeLabel: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Makes retries safe: a retry with the same key and body returns the first response for 24 hours instead of repeating the work. Reusing a key with a different body returns 409. */
+        "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        /** @description The label's ID */
+        labelId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        /**
+         * @example {
+         *       "assetIds": [
+         *         "3f6c2a1e-8b4d-4e2a-9c7f-1a2b3c4d5e6f"
+         *       ]
+         *     }
+         */
+        "application/json": components["schemas"]["AssetBatchRequest"];
+      };
+    };
+    responses: {
+      /** @description What the request changed. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          "Idempotent-Replayed": components["headers"]["Idempotent-Replayed"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AssetBatchChange"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      415: components["responses"]["UnsupportedMediaType"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  listAttachments: {
+    parameters: {
+      query: {
+        projectId: string;
+        folderId?: string;
+        clipId?: string;
+        /** @description Attachments per page; default 50 */
+        limit?: number;
+        /** @description nextCursor from the previous page, with the same filters */
+        cursor?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of attachments, without bodies. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AttachmentList"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  createAttachment: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Makes retries safe: a retry with the same key and body returns the first response for 24 hours instead of repeating the work. Reusing a key with a different body returns 409. */
+        "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        /**
+         * @example {
+         *       "projectId": "5a4b3c2d-1e0f-4a9b-8c7d-6e5f4a3b2c1d",
+         *       "title": "Direction",
+         *       "body": "Warm light and quiet movement."
+         *     }
+         */
+        "application/json": components["schemas"]["CreateAttachmentRequest"];
+      };
+    };
+    responses: {
+      /** @description An identical live attachment already exists. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          "Idempotent-Replayed": components["headers"]["Idempotent-Replayed"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AttachmentCreate"];
+        };
+      };
+      /** @description The attachment was saved. */
+      201: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          "Idempotent-Replayed": components["headers"]["Idempotent-Replayed"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AttachmentCreate"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      415: components["responses"]["UnsupportedMediaType"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  getAttachment: {
+    parameters: {
+      query?: {
+        version?: number;
+      };
+      header?: never;
+      path: {
+        /** @description The attachment's ID */
+        attachmentId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The attachment text and its saved version. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AttachmentDetail"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  deleteAttachment: {
+    parameters: {
+      query: {
+        expectedVersion: number;
+      };
+      header?: {
+        /** @description Makes retries safe: a retry with the same key and body returns the first response for 24 hours instead of repeating the work. Reusing a key with a different body returns 409. */
+        "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        /** @description The attachment's ID */
+        attachmentId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The deletion's version, or the unchanged current version. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          "Idempotent-Replayed": components["headers"]["Idempotent-Replayed"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AttachmentDelete"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      415: components["responses"]["UnsupportedMediaType"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  reviseAttachment: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Makes retries safe: a retry with the same key and body returns the first response for 24 hours instead of repeating the work. Reusing a key with a different body returns 409. */
+        "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        /** @description The attachment's ID */
+        attachmentId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        /**
+         * @example {
+         *       "expectedVersion": 1,
+         *       "body": "Cool light and quiet movement."
+         *     }
+         */
+        "application/json": components["schemas"]["ReviseAttachmentRequest"];
+      };
+    };
+    responses: {
+      /** @description The saved version, or the unchanged current version. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          "Idempotent-Replayed": components["headers"]["Idempotent-Replayed"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AttachmentRevise"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      415: components["responses"]["UnsupportedMediaType"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  restoreAttachment: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Makes retries safe: a retry with the same key and body returns the first response for 24 hours instead of repeating the work. Reusing a key with a different body returns 409. */
+        "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        /** @description The attachment's ID */
+        attachmentId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        /**
+         * @example {
+         *       "version": 1,
+         *       "expectedVersion": 3
+         *     }
+         */
+        "application/json": components["schemas"]["RestoreAttachmentRequest"];
+      };
+    };
+    responses: {
+      /** @description The restored version and the historical version copied. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          "Idempotent-Replayed": components["headers"]["Idempotent-Replayed"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AttachmentRestore"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      415: components["responses"]["UnsupportedMediaType"];
+      429: components["responses"]["TooManyRequests"];
+      500: components["responses"]["InternalError"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  listAttachmentVersions: {
+    parameters: {
+      query?: {
+        /** @description Versions per page; default 50 */
+        limit?: number;
+        /** @description nextCursor from the previous page, with the same filters */
+        cursor?: string;
+      };
+      header?: never;
+      path: {
+        /** @description The attachment's ID */
+        attachmentId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of saved revisions, without bodies. */
+      200: {
+        headers: {
+          "Request-Id": components["headers"]["Request-Id"];
+          "RateLimit-Limit": components["headers"]["RateLimit-Limit"];
+          "RateLimit-Remaining": components["headers"]["RateLimit-Remaining"];
+          "RateLimit-Reset": components["headers"]["RateLimit-Reset"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AttachmentVersions"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
       429: components["responses"]["TooManyRequests"];
       500: components["responses"]["InternalError"];
       503: components["responses"]["ServiceUnavailable"];
