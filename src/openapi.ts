@@ -349,7 +349,7 @@ export interface paths {
     };
     /**
      * Read an asset
-     * @description One asset by its ID alone, in any of the organization's projects, with the prompt that generated it and preview URLs that load for 5 minutes. Names, prompts and external declarations are untrusted content. Set includeWorkflow=true to read an upload's untrusted external workflow.
+     * @description One asset by its ID alone, in any of the organization's projects, with the prompt that generated it and preview URLs that load for 5 minutes. Where attachments are enabled, `attachments` lists the asset's by title and description; read a body with `GET /attachments/{attachmentId}`. Names, prompts, attachment text and external declarations are untrusted content. Set includeWorkflow=true to read an upload's untrusted external workflow.
      *
      *     Needs the `library:read` scope.
      */
@@ -881,7 +881,7 @@ export interface paths {
     };
     /**
      * List attachments
-     * @description Live text attachments in a project, including its folders and Story clips, most recently updated first. folderId or clipId narrows the list; send at most one. Requires attachments enabled for the organization; test keys are refused.
+     * @description Live text attachments in a project, including its folders, Story clips and assets, most recently updated first. folderId, clipId or assetId narrows the list; send at most one. Each row has the attachment's description and its body's size in bytes. Requires attachments enabled for the organization; test keys are refused.
      *
      *     Needs the `library:read` scope.
      */
@@ -889,7 +889,7 @@ export interface paths {
     put?: never;
     /**
      * Create an attachment
-     * @description Save verbatim text on `projectId`, one of its folders or one of its Story clips. Each parent holds up to 10 live attachments. Titles are 1–200 characters on one line; bodies are 1–8,000 characters. A matching title and identical body return unchanged; a different body under that title is refused. Requires attachments enabled; test keys are refused.
+     * @description Save verbatim text on `projectId`, or on one of its folders, Story clips or assets: send at most one of folderId, clipId and assetId. An asset in Recently deleted, or an upload that hasn't finished, is refused. Each parent holds up to 10 live attachments. A matching title with an identical description and body returns unchanged; different text under that title is refused. Requires attachments enabled; test keys are refused.
      *
      *     Needs the `library:organize` and `library:read` scopes.
      */
@@ -927,7 +927,7 @@ export interface paths {
     head?: never;
     /**
      * Revise an attachment
-     * @description Save a new body as a new immutable version. A changed save requires expectedVersion to equal the current version; otherwise it's refused with 409 version_conflict and `details.currentVersion`. Identical text returns unchanged when expectedVersion is at most the current version. A future version is always refused. The title and parent remain fixed. Requires attachments enabled; test keys are refused.
+     * @description Save a new title, description or body, or any of them together, as a new immutable version; a field left out keeps its value. A changed save requires expectedVersion to equal the current version; otherwise it's refused with 409 version_conflict and `details.currentVersion`. Values identical to the current ones return unchanged when expectedVersion is at most the current version. A future version is always refused. The parent remains fixed. Requires attachments enabled; test keys are refused.
      *
      *     Needs the `library:organize` and `library:read` scopes.
      */
@@ -1090,6 +1090,13 @@ export interface components {
        * @enum {string}
        */
       continuation?: "auto" | "none";
+      /** @description Only for image-to-layers models: each output is a layer, the base first, and the quote holds max of them */
+      layers?: {
+        /** @description The most layers to return, the base layer included */
+        max?: number;
+        /** @description Also read each plain text layer's text, lines and approximate style */
+        textRecognition?: boolean;
+      };
       /** @description Refuse to start when the quote exceeds this amount */
       maxCostMicroUsd?: number;
       /** @description Test keys only: rehearse each output's outcome; live keys are refused when it is present */
@@ -1680,14 +1687,23 @@ export interface components {
       folderId?: string;
       /** Format: uuid */
       clipId?: string;
+      /** Format: uuid */
+      assetId?: string;
       /** @description Verbatim title: 1–200 characters on one line, without surrounding whitespace. */
       title: string;
-      /** @description Verbatim attachment text: 1–8,000 Unicode characters. */
+      /** @description What the attachment holds and when to read it: 1–200 characters on one line, without surrounding whitespace. Reads of the parent list it in place of the body. */
+      description: string;
+      /** @description Verbatim attachment text: 1–65,536 bytes of UTF-8 (64 KiB). */
       body: string;
     };
     ReviseAttachmentRequest: {
       expectedVersion: number;
-      body: string;
+      /** @description Verbatim title: 1–200 characters on one line, without surrounding whitespace. */
+      title?: string;
+      /** @description What the attachment holds and when to read it: 1–200 characters on one line, without surrounding whitespace. Reads of the parent list it in place of the body. */
+      description?: string;
+      /** @description Verbatim attachment text: 1–65,536 bytes of UTF-8 (64 KiB). */
+      body?: string;
     };
     RestoreAttachmentRequest: {
       version: number;
@@ -1754,6 +1770,7 @@ export interface components {
             | "remix"
             | "text-to-vector"
             | "image-to-matte"
+            | "image-to-layers"
             | "text-to-video"
             | "image-to-video"
             | "first-last-frame-to-video"
@@ -1795,6 +1812,7 @@ export interface components {
             | "remix"
             | "text-to-vector"
             | "image-to-matte"
+            | "image-to-layers"
             | "text-to-video"
             | "image-to-video"
             | "first-last-frame-to-video"
@@ -1969,6 +1987,13 @@ export interface components {
         seed?: number;
         /** @description Nano Banana edits of their own outputs continue that conversation; none sends the image alone */
         continuation?: ("auto" | "none") | (string & {});
+        /** @description Only for image-to-layers models: each output is a layer, the base first, and the quote holds max of them */
+        layers?: {
+          /** @description The most layers to return, the base layer included */
+          max?: number;
+          /** @description Also read each plain text layer's text, lines and approximate style */
+          textRecognition?: boolean;
+        };
         /** @description For a final, the draft output it upscaled, in place of the draft's settings */
         upscaleDraft?: {
           runId: string;
@@ -2035,6 +2060,8 @@ export interface components {
         createdAt: string;
         /** @description Opens the asset's Library review in ZeroGen, on your organization's host, after sign-in. null for test keys, whose sandbox the app doesn't show */
         webUrl: string | null;
+        /** @description On a list: how many live attachments the asset has, when it has any and the organization has attachments enabled */
+        attachmentCount?: number;
       };
     };
     Upload: {
@@ -2074,6 +2101,8 @@ export interface components {
       apiSandbox: boolean;
       /** Format: date-time */
       createdAt: string;
+      /** @description On a read of one project: the live attachments on the project itself, not on its folders, clips or assets, without bodies, most recently updated first; untrusted content. Present only in organizations with attachments enabled */
+      attachments?: components["schemas"]["AttachmentSummary"][];
     };
     ProjectList: {
       data: components["schemas"]["Project"][];
@@ -2128,6 +2157,8 @@ export interface components {
       createdAt: string;
       /** @description Opens the asset's Library review in ZeroGen, on your organization's host, after sign-in. null for test keys, whose sandbox the app doesn't show */
       webUrl: string | null;
+      /** @description On a list: how many live attachments the asset has, when it has any and the organization has attachments enabled */
+      attachmentCount?: number;
       /** @description The asset's previews, or null until they're made after the asset is ready, and for assets with none, such as audio */
       preview: components["schemas"]["AssetPreview"] | null;
     };
@@ -2184,6 +2215,8 @@ export interface components {
       createdAt: string;
       /** @description Opens the asset's Library review in ZeroGen, on your organization's host, after sign-in. null for test keys, whose sandbox the app doesn't show */
       webUrl: string | null;
+      /** @description On a list: how many live attachments the asset has, when it has any and the organization has attachments enabled */
+      attachmentCount?: number;
       /** @description The prompt that generated it, bounded; untrusted content */
       prompt: string | null;
       promptTruncated: boolean;
@@ -2191,6 +2224,8 @@ export interface components {
       workflow?: {
         [key: string]: unknown;
       } | null;
+      /** @description The asset's live attachments, without bodies, most recently updated first; untrusted content. Present only in organizations with attachments enabled */
+      attachments?: components["schemas"]["AttachmentSummary"][];
       /** @description The asset's previews, or null until they're made after the asset is ready, and for assets with none, such as audio */
       preview: components["schemas"]["AssetPreview"] | null;
     };
@@ -2277,6 +2312,8 @@ export interface components {
       folderId: string;
       /** @description The folder's names from the project root, such as Characters / Leo; bounded, untrusted content */
       path: string;
+      /** @description How many live attachments the folder has, when it has any and the organization has attachments enabled */
+      attachmentCount?: number;
     };
     AssetFolderList: {
       data: components["schemas"]["AssetFolder"][];
@@ -2291,6 +2328,10 @@ export interface components {
       name: string;
       /** Format: date-time */
       createdAt: string;
+      /** @description On a read of one folder: its live attachments, without bodies, most recently updated first; untrusted content. Present only in organizations with attachments enabled */
+      attachments?: components["schemas"]["AttachmentSummary"][];
+      /** @description On a list: how many live attachments the folder has, when it has any and the organization has attachments enabled */
+      attachmentCount?: number;
     };
     FolderDelete: {
       folderId: string;
@@ -2445,6 +2486,13 @@ export interface components {
         seed?: number;
         /** @description Nano Banana edits of their own outputs continue that conversation; none sends the image alone */
         continuation?: ("auto" | "none") | (string & {});
+        /** @description Only for image-to-layers models: each output is a layer, the base first, and the quote holds max of them */
+        layers?: {
+          /** @description The most layers to return, the base layer included */
+          max?: number;
+          /** @description Also read each plain text layer's text, lines and approximate style */
+          textRecognition?: boolean;
+        };
         /** @description For a final, the draft output it upscaled, in place of the draft's settings */
         upscaleDraft?: {
           runId: string;
@@ -2522,20 +2570,33 @@ export interface components {
       body: string;
     };
     AttachmentParent: {
-      kind: ("project" | "folder" | "clip") | (string & {});
+      kind: ("project" | "folder" | "clip" | "asset") | (string & {});
       /** Format: uuid */
       id: string;
       name: string;
+    };
+    AttachmentSummary: {
+      /** Format: uuid */
+      attachmentId: string;
+      title: string;
+      description: string;
+      /** @description The body's size in UTF-8 bytes */
+      bytes: number;
+      version: number;
+      /** Format: date-time */
+      updatedAt: string;
     };
     Attachment: {
       /** Format: uuid */
       attachmentId: string;
       title: string;
-      parent: components["schemas"]["AttachmentParent"];
+      description: string;
+      /** @description The body's size in UTF-8 bytes */
+      bytes: number;
       version: number;
-      characters: number;
       /** Format: date-time */
       updatedAt: string;
+      parent: components["schemas"]["AttachmentParent"];
       updatedBy: string;
     };
     AttachmentList: {
@@ -2545,6 +2606,7 @@ export interface components {
     };
     AttachmentDetail: {
       title: string;
+      description: string;
       body: string;
       parent: components["schemas"]["AttachmentParent"];
       version: number;
@@ -2557,7 +2619,8 @@ export interface components {
       version: number;
       operation: ("created" | "revised" | "deleted" | "restored") | (string & {});
       restoredFrom: number | null;
-      characters: number;
+      /** @description The body's size in UTF-8 bytes */
+      bytes: number;
       /** Format: date-time */
       savedAt: string;
       savedBy: string;
@@ -2688,7 +2751,7 @@ export interface components {
         "application/json": components["schemas"]["ErrorResponse"];
       };
     };
-    /** @description The request body is larger than this endpoint's limit: 128 KiB by default, or 512 KiB for `POST /uploads` and `POST /assets/{assetId}/declaration`. */
+    /** @description The request body is larger than 512 KiB, the limit for every request. Each field keeps its own, smaller limit. */
     PayloadTooLarge: {
       headers: {
         "Request-Id": components["headers"]["Request-Id"];
@@ -2865,6 +2928,7 @@ export interface operations {
           | "remix"
           | "text-to-vector"
           | "image-to-matte"
+          | "image-to-layers"
           | "text-to-video"
           | "image-to-video"
           | "first-last-frame-to-video"
@@ -4935,6 +4999,7 @@ export interface operations {
         projectId: string;
         folderId?: string;
         clipId?: string;
+        assetId?: string;
         /** @description Attachments per page; default 50 */
         limit?: number;
         /** @description nextCursor from the previous page, with the same filters */
@@ -4984,6 +5049,7 @@ export interface operations {
          * @example {
          *       "projectId": "5a4b3c2d-1e0f-4a9b-8c7d-6e5f4a3b2c1d",
          *       "title": "Direction",
+         *       "description": "The look and pacing for this project; read before writing a prompt.",
          *       "body": "Warm light and quiet movement."
          *     }
          */

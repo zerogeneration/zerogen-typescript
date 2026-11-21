@@ -75,6 +75,8 @@ export type Skill = Schemas["Skill"];
 export type SkillDetail = Schemas["SkillDetail"];
 export type Attachment = Schemas["Attachment"];
 export type AttachmentParent = Schemas["AttachmentParent"];
+/** An attachment as a read of its project, folder or asset lists it: no body. */
+export type AttachmentSummary = Schemas["AttachmentSummary"];
 export type AttachmentDetail = Schemas["AttachmentDetail"];
 export type AttachmentVersion = Schemas["AttachmentVersion"];
 export type CreateAttachmentRequest = Schemas["CreateAttachmentRequest"];

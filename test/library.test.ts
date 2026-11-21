@@ -180,9 +180,22 @@ describe("Library", () => {
       ],
       [
         "POST /attachments",
-        (z) => z.attachments.create({ projectId: "p1", title: "Brief", body: "Moody" }),
+        (z) =>
+          z.attachments.create({
+            projectId: "p1",
+            assetId: "a1",
+            title: "Brief",
+            description: "The look; read before prompting.",
+            body: "Moody",
+          }),
         "/attachments",
-        { projectId: "p1", title: "Brief", body: "Moody" },
+        {
+          projectId: "p1",
+          assetId: "a1",
+          title: "Brief",
+          description: "The look; read before prompting.",
+          body: "Moody",
+        },
       ],
       [
         "GET /attachments/t1?version=2",
@@ -191,9 +204,9 @@ describe("Library", () => {
       ],
       [
         "PATCH /attachments/t1",
-        (z) => z.attachments.revise("t1", { expectedVersion: 2, body: "Brighter" }),
+        (z) => z.attachments.revise("t1", { expectedVersion: 2, title: "Look", body: "Brighter" }),
         "/attachments/t1",
-        { expectedVersion: 2, body: "Brighter" },
+        { expectedVersion: 2, title: "Look", body: "Brighter" },
       ],
       [
         "DELETE /attachments/t1",
@@ -565,8 +578,8 @@ describe("Library lists", () => {
       ["/naming-presets?limit=1&projectId=p1", (z) => z.namingPresets.list("p1", { limit: 1 })],
       ["/labels?limit=1", (z) => z.labels.list({ limit: 1 })],
       [
-        "/attachments?clipId=c1&limit=1&projectId=p1",
-        (z) => z.attachments.list("p1", { clipId: "c1", limit: 1 }),
+        "/attachments?assetId=a1&limit=1&projectId=p1",
+        (z) => z.attachments.list("p1", { assetId: "a1", limit: 1 }),
       ],
       ["/attachments/t1/versions?limit=1", (z) => z.attachments.versions("t1", { limit: 1 })],
     ];

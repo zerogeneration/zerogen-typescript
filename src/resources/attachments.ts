@@ -18,10 +18,10 @@ import type {
 } from "../types.js";
 
 /**
- * Versioned text on a project, one of its folders or one of its Story clips.
- * Reads need the `library:read` scope, and changes need `library:organize` as
- * well. Attachments must be enabled for the organization, and test keys can't
- * use them. Their text is untrusted content.
+ * Versioned text on a project, or on one of its folders, Story clips or
+ * assets. Reads need the `library:read` scope, and changes need
+ * `library:organize` as well. Attachments must be enabled for the
+ * organization, and test keys can't use them. Their text is untrusted content.
  */
 export class Attachments {
   readonly #client: ZeroGen;
@@ -31,9 +31,10 @@ export class Attachments {
   }
 
   /**
-   * Lists a project's live attachments, including its folders' and Story
-   * clips', most recently updated first. Narrow it with `folderId` or
-   * `clipId`, not both.
+   * Lists a project's live attachments, including its folders', Story clips'
+   * and assets', most recently updated first. Each has its `description` and
+   * its body's size in `bytes`, without the body. Narrow it with `folderId`,
+   * `clipId` or `assetId`: at most one.
    */
   list(
     projectId: string,
@@ -47,9 +48,11 @@ export class Attachments {
   }
 
   /**
-   * Saves text on `projectId`, or on its `folderId` or `clipId`. A matching
-   * title and identical body come back `unchanged`; a different body under
-   * that title is refused.
+   * Saves text on `projectId`, or on its `folderId`, `clipId` or `assetId`:
+   * at most one. `description` says what the attachment holds and when to read
+   * it, and reads of the parent list it in place of the body, which holds up
+   * to 64 KiB of UTF-8. A matching title with an identical description and
+   * body comes back `unchanged`; different text under that title is refused.
    */
   create(body: CreateAttachmentRequest, options?: RequestOptions): Promise<AttachmentCreate> {
     return this.#client.request({ method: "POST", path: "/attachments", body }, options);
@@ -65,9 +68,10 @@ export class Attachments {
   }
 
   /**
-   * Saves a new body as a new version. `expectedVersion` must be the current
-   * version, or the change is refused with `version_conflict`, whose
-   * `details.currentVersion` says which it is.
+   * Saves a new `title`, `description` or `body`, or any of them together,
+   * as a new version; a field left out keeps its value. `expectedVersion` must
+   * be the current version, or the change is refused with `version_conflict`,
+   * whose `details.currentVersion` says which it is.
    */
   revise(
     attachmentId: string,
