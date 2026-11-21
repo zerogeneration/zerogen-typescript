@@ -348,10 +348,10 @@ For each recipe's steps, see [Transforms](https://docs.zerogen.com/developers/tr
 
 ## Attachments
 
-Attachments are versioned text on a project, one of its folders, or one of its
-Story clips, such as a brief. Reads need the `library:read` scope, and changes
-need `library:organize` as well. Attachments have to be enabled for your
-organization, and test keys can't use them.
+Attachments are versioned text on a project, or on one of its folders, Story
+clips or assets, such as a brief. Reads need the `library:read` scope, and
+changes need `library:organize` as well. Attachments have to be enabled for
+your organization, and test keys can't use them.
 
 ```ts
 import { ZeroGenError } from "@zerogen/sdk";
@@ -359,6 +359,7 @@ import { ZeroGenError } from "@zerogen/sdk";
 const { attachmentId, version } = await zerogen.attachments.create({
   projectId,
   title: "Brief",
+  description: "The look for this project; read before writing a prompt.",
   body: "Moody, overcast, 35mm.",
 });
 
@@ -375,6 +376,17 @@ A change names the version it expects in `expectedVersion`. If someone else
 saved since, it's refused with `version_conflict`, and `details.currentVersion`
 says which version the attachment is at. `attachments.versions` lists its
 saved versions, and `attachments.restore` copies one into a new version.
+
+Name a `folderId`, `clipId` or `assetId` in `create` to save the text there
+instead of on the project. A `description` is one line of up to 200 characters
+saying what the attachment holds and when to read it, and a body holds up to
+64 KiB of UTF-8. `revise` can change the title, the description and the body.
+
+You don't have to list attachments to find them. `projects.get`,
+`folders.get` and `assets.get` return the resource's own `attachments`, each
+an `AttachmentSummary` with its description and size but no body, and lists of
+folders and assets carry an `attachmentCount` when it's above zero. Read a body
+with `attachments.get`.
 
 ## Lists
 
